@@ -105,7 +105,7 @@ static uint8_t AUDIO_AudioCmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 		{
 			codec->Stop();
 		}
-		HAL_I2S_DMAStop(&AUDIO_I2S_SLAVE_HANDLE);
+		//HAL_I2S_DMAStop(&AUDIO_I2S_SLAVE_HANDLE);
 		HAL_I2S_DMAStop(&AUDIO_I2S_MSTR_HANDLE);
 //		HAL_DMA_Start_IT(&hdma_memtomem_dma2_stream0, (uint32_t)&zero, (uint32_t)aud_buf->mem, aud_buf->capacity >> 1);
 		LL_GPIO_SetOutputPin(LED2_GPIO_Port, LED2_Pin);

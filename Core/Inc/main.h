@@ -7,7 +7,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2023 STMicroelectronics.
+  * Copyright (c) 2024 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -41,6 +41,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -66,16 +67,27 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define PDN_Pin LL_GPIO_PIN_0
-#define PDN_GPIO_Port GPIOA
-#define LED1_Pin LL_GPIO_PIN_14
+#define ANALOG_ON_Pin LL_GPIO_PIN_2
+#define ANALOG_ON_GPIO_Port GPIOE
+#define RELAY_ON_Pin LL_GPIO_PIN_13
+#define RELAY_ON_GPIO_Port GPIOC
+#define PDN_Pin LL_GPIO_PIN_14
+#define PDN_GPIO_Port GPIOB
+#define LED1_Pin LL_GPIO_PIN_15
 #define LED1_GPIO_Port GPIOB
-#define LED2_Pin LL_GPIO_PIN_15
-#define LED2_GPIO_Port GPIOB
-#define LED3_Pin LL_GPIO_PIN_6
-#define LED3_GPIO_Port GPIOC
+#define LED2_Pin LL_GPIO_PIN_8
+#define LED2_GPIO_Port GPIOD
+#define LED3_Pin LL_GPIO_PIN_9
+#define LED3_GPIO_Port GPIOD
+#define LED4_Pin LL_GPIO_PIN_10
+#define LED4_GPIO_Port GPIOD
+#define MUX_EN_Pin LL_GPIO_PIN_11
+#define MUX_EN_GPIO_Port GPIOA
+#define MUX_SEL_Pin LL_GPIO_PIN_12
+#define MUX_SEL_GPIO_Port GPIOA
 #define DSDOE_Pin LL_GPIO_PIN_11
 #define DSDOE_GPIO_Port GPIOC
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

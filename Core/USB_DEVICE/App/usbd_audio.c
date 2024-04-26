@@ -89,7 +89,7 @@ void USBD_AUDIO_UpdateFB(USBD_HandleTypeDef *pdev)
 
 	int64_t tmp = (haudio->aud_buf.size - (haudio->aud_buf.capacity >> 1)) << 3;
 
-	tmp = CLAMP(tmp, -(1 << 16), (1 << 16));
+	//tmp = CLAMP(tmp, -(1 << 16), (1 << 16));
 	haudio->feedback_value = haudio->feedback_base - tmp;
 }
 
