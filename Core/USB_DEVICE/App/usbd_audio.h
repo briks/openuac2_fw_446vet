@@ -73,7 +73,7 @@ extern "C" {
 
 #define FEEDBACK_PACKET_SIZE													4U
 
-#define AUDIO_BUFFER_PACKET_NUM												40U
+#define AUDIO_BUFFER_PACKET_NUM												160U
 #define AUDIO_BUF_SIZE                        				(AUDIO_BUFFER_PACKET_NUM * (AUDIO_MAX_FREQ / 1000U))
 
 /* Audio20 appendix definitions */

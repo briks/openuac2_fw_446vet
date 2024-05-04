@@ -395,10 +395,10 @@ void USBD_AUDIO_Sync(USBD_HandleTypeDef *pdev)
 	}
 
   if (haudio->aud_buf.size < haudio->aud_buf.capacity >> 2)
-	{
+	{// this could occur on stop or next track
 		LL_GPIO_ResetOutputPin(LED1_GPIO_Port, LED1_Pin);
 		uint8_t tmp = 1;
-		itf->AudioCmd(&tmp, sizeof(tmp), AUDIO_CMD_MUTE);
+		//itf->AudioCmd(&tmp, sizeof(tmp), AUDIO_CMD_MUTE);
 	}
   else
   {
@@ -513,7 +513,7 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
 		}
 
 		if (haudio->aud_buf.size > haudio->aud_buf.capacity - (haudio->aud_buf.capacity >> 2))
-		{
+		{ // never occurs ?
 			LL_GPIO_ResetOutputPin(LED3_GPIO_Port, LED3_Pin);
 		}
 		else

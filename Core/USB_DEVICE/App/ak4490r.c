@@ -40,9 +40,9 @@ uint8_t AK4490R_Init()
 
 	//reg14 normal operation b10001010 
 	registre = 0x8a;
-	HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x0e, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&regread, sizeof(regread), HAL_MAX_DELAY );
-	HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x0e, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, sizeof(registre), HAL_MAX_DELAY);
-	HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x0e, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&regread, sizeof(regread), HAL_MAX_DELAY );
+	HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&regread, sizeof(regread), HAL_MAX_DELAY );
+	HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, sizeof(registre), HAL_MAX_DELAY);
+	HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&regread, sizeof(regread), HAL_MAX_DELAY );
 
 	//reg1 input selection: set 32bits data default and i2s 1100 set to i2s input (no auto detect) 0000
 	registre = 0xcc;
@@ -56,20 +56,28 @@ uint8_t AK4490R_Init()
 	registre = 0x30;
 	//HAL_I2C_Mem_Write_IT(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x0b, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, sizeof(registre));
 
-	//reg27 try +18db gain (not good idea) made volumne ch2 same a ch1
-	registre = 0xdc;
-	HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x1b, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, sizeof(registre), HAL_MAX_DELAY);
+	//reg27 no +18db gain (not good idea) made volumne ch2 same a ch1, and allow volume update
+	//registre = 0xdc;
+	//reg27 setasrc enable, volume ch2 same as ch1, and allow volume update
+	registre = 0x8C;
+	HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG27_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, sizeof(registre), HAL_MAX_DELAY);
 	return 0;
 }
 
-uint8_t AK4490R_SetVolume(uint8_t vol)
+uint32_t written_volume = 0;
+
+uint8_t AK4490R_SetVolume(uint8_t vol) // receive a value between 0 and 100. Compare to windows : 0->0, 1->0, then n-1 up to 99, and 100->100
 {
 	if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
 	{
-		vol = (vol > 0) ? (vol + 155) : 0;
-		registre = vol;
+		//vol = (vol > 0) ? (vol + 155) : 0;
+		#define MAX_RECEIVED_VOLUME 100 // Max value send by the driver, assuming the min is 0
+		#define MAX_ATTENUATION     50 // in Db, knowing that the step is 0.5db in the register, max 127.5, so max 127 here.
+		written_volume = (MAX_RECEIVED_VOLUME - (uint32_t) vol) * MAX_ATTENUATION * 2 / MAX_RECEIVED_VOLUME; // Write an attenuation in the register in range 0-255
+		registre = written_volume;
 		//registre = 0x0;
 		HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, HAL_MAX_DELAY);
+		// not needed to update volume2, see AK4490R_REG27_ADDR configuration (ch1_volume)
 		//HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG16_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, HAL_MAX_DELAY);
 		//HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, HAL_MAX_DELAY );
 	}
@@ -77,7 +85,7 @@ uint8_t AK4490R_SetVolume(uint8_t vol)
 	return 0;
 }
 
-uint8_t AK4490R_SetMute(uint8_t mute)
+uint8_t AK4490R_SetMute(uint8_t mute) // mute = 1 when mute is requested
 {
 	if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
 	{
@@ -90,7 +98,7 @@ uint8_t AK4490R_SetMute(uint8_t mute)
 			registre = 0x80;
 		}
 		//reg7 filter bw and system mute: set the mute b10000001 or normal b10000000
-		//HAL_I2C_Mem_Write_IT(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x07, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1);
+		HAL_I2C_Mem_Write_IT(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG7_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1);
 	}
 
 	return 0;
