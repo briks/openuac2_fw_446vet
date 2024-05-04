@@ -64,18 +64,16 @@ uint8_t AK4490R_Init()
 	return 0;
 }
 
-uint32_t written_volume = 0;
 
 uint8_t AK4490R_SetVolume(uint8_t vol) // receive a value between 0 and 100. Compare to windows : 0->0, 1->0, then n-1 up to 99, and 100->100
 {
 	if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
 	{
-		//vol = (vol > 0) ? (vol + 155) : 0;
 		#define MAX_RECEIVED_VOLUME 100 // Max value send by the driver, assuming the min is 0
-		#define MAX_ATTENUATION     50 // in Db, knowing that the step is 0.5db in the register, max 127.5, so max 127 here.
-		written_volume = (MAX_RECEIVED_VOLUME - (uint32_t) vol) * MAX_ATTENUATION * 2 / MAX_RECEIVED_VOLUME; // Write an attenuation in the register in range 0-255
-		registre = written_volume;
-		//registre = 0x0;
+		#define MAX_ATTENUATION     64 // in dB, knowing that the step is 0.5dB in the register, max 127.5, so max 127 here.
+		vol = MAX_RECEIVED_VOLUME - (uint32_t) vol;
+		registre =    (vol * vol) * MAX_ATTENUATION * 2
+					/ (MAX_RECEIVED_VOLUME * MAX_RECEIVED_VOLUME); // Write an attenuation in the register in range 0-255
 		HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, HAL_MAX_DELAY);
 		// not needed to update volume2, see AK4490R_REG27_ADDR configuration (ch1_volume)
 		//HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG16_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, HAL_MAX_DELAY);
