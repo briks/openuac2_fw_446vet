@@ -10,6 +10,7 @@
 #define AK4490R_REG7_ADDR      0x07
 #define AK4490R_REG8_ADDR      0x08
 #define AK4490R_REG11_ADDR       0x0b
+#define AK4490R_REG14_ADDR       0x0e
 #define AK4490R_REG15_ADDR       0x0f
 #define AK4490R_REG16_ADDR       0x10
 #define AK4490R_REG27_ADDR       0x1b

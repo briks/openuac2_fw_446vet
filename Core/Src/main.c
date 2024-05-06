@@ -127,6 +127,17 @@ int main(void)
   LL_TIM_EnableCounter(TIM3);
   /* USER CODE END 2 */
 
+  LL_GPIO_SetOutputPin(GPIOD, LED4_Pin);
+  LL_mDelay(100);
+  LL_GPIO_SetOutputPin(GPIOB, LED1_Pin);
+  LL_mDelay(100);
+  LL_GPIO_SetOutputPin(GPIOD, LED2_Pin);
+  LL_mDelay(100);
+  LL_GPIO_SetOutputPin(GPIOD, LED3_Pin);
+  LL_mDelay(300);
+  LL_GPIO_ResetOutputPin(GPIOD, LED2_Pin|LED3_Pin|LED4_Pin);
+  LL_GPIO_ResetOutputPin(GPIOB, LED1_Pin);
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -320,6 +331,9 @@ static void MX_TIM3_Init(void)
 {
 
   /* USER CODE BEGIN TIM3_Init 0 */
+
+  // Driven by I2S WS (word select) output, as an input on PD2 as ETR (external trigger)
+  // Update event each 32 times
 
   /* USER CODE END TIM3_Init 0 */
 
