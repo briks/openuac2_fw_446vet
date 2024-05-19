@@ -82,7 +82,7 @@ static uint8_t AUDIO_AudioCmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 			codec->Play();
 		}
 		HAL_I2S_Transmit_DMA(&AUDIO_I2S_MSTR_HANDLE, (uint16_t*)aud_buf->mem, aud_buf->capacity >> 2);
-		LL_GPIO_ResetOutputPin(LED2_GPIO_Port, LED2_Pin);
+		LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
 		break;
 
 	case AUDIO_CMD_FORMAT:
@@ -108,8 +108,8 @@ static uint8_t AUDIO_AudioCmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 		//HAL_I2S_DMAStop(&AUDIO_I2S_SLAVE_HANDLE);
 		HAL_I2S_DMAStop(&AUDIO_I2S_MSTR_HANDLE);
 //		HAL_DMA_Start_IT(&hdma_memtomem_dma2_stream0, (uint32_t)&zero, (uint32_t)aud_buf->mem, aud_buf->capacity >> 1);
-		LL_GPIO_SetOutputPin(LED2_GPIO_Port, LED2_Pin);
-		LL_GPIO_SetOutputPin(LED3_GPIO_Port, LED3_Pin);
+		LL_GPIO_SetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
+		LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
 		LL_GPIO_ResetOutputPin(DSDOE_GPIO_Port, DSDOE_Pin);
 		break;
 

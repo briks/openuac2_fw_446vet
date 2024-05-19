@@ -125,18 +125,22 @@ int main(void)
   MX_USB_DEVICE_Init();
   LL_TIM_EnableIT_UPDATE(TIM3);
   LL_TIM_EnableCounter(TIM3);
-  /* USER CODE END 2 */
 
-  LL_GPIO_SetOutputPin(GPIOD, LED4_Pin);
+  /* LED check at startup */
+  LL_GPIO_SetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
   LL_mDelay(100);
-  LL_GPIO_SetOutputPin(GPIOB, LED1_Pin);
+  LL_GPIO_SetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
   LL_mDelay(100);
-  LL_GPIO_SetOutputPin(GPIOD, LED2_Pin);
+  LL_GPIO_SetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
   LL_mDelay(100);
-  LL_GPIO_SetOutputPin(GPIOD, LED3_Pin);
+  LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
   LL_mDelay(300);
-  LL_GPIO_ResetOutputPin(GPIOD, LED2_Pin|LED3_Pin|LED4_Pin);
-  LL_GPIO_ResetOutputPin(GPIOB, LED1_Pin);
+  LL_GPIO_ResetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
+  LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
+  LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
+  LL_GPIO_ResetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+
+  /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -169,9 +173,9 @@ void SystemClock_Config(void)
   {
 
   }
-  LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLM_DIV_16, 250, LL_RCC_PLLP_DIV_4);
+  //LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLM_DIV_16, 250, LL_RCC_PLLP_DIV_4);
   LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLM_DIV_16, 250, LL_RCC_PLLR_DIV_2);
-  RCC->PLLCFGR |= 1 << 16; 
+  MODIFY_REG(RCC->PLLCFGR, RCC_PLLCFGR_PLLP, LL_RCC_PLLP_DIV_4); // replace uneffective line above
   LL_RCC_PLL_Enable();
 
    /* Wait till PLL is ready */
@@ -561,10 +565,10 @@ static void MX_GPIO_Init(void)
   LL_GPIO_ResetOutputPin(GPIOC, RELAY_ON_Pin|DSDOE_Pin);
 
   /**/
-  LL_GPIO_ResetOutputPin(GPIOB, PDN_Pin|LED1_Pin);
+  LL_GPIO_ResetOutputPin(GPIOB, PDN_Pin|LED1_SPDIF_Pin);
 
   /**/
-  LL_GPIO_ResetOutputPin(GPIOD, LED2_Pin|LED3_Pin|LED4_Pin);
+  LL_GPIO_ResetOutputPin(GPIOD, LED2_BT_Pin|LED3_LINE_Pin|LED4_USB_Pin);
 
   /**/
   LL_GPIO_ResetOutputPin(GPIOA, MUX_EN_Pin|MUX_SEL_Pin);
@@ -586,7 +590,7 @@ static void MX_GPIO_Init(void)
   LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /**/
-  GPIO_InitStruct.Pin = PDN_Pin|LED1_Pin;
+  GPIO_InitStruct.Pin = PDN_Pin|LED1_SPDIF_Pin;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
@@ -594,7 +598,7 @@ static void MX_GPIO_Init(void)
   LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /**/
-  GPIO_InitStruct.Pin = LED2_Pin|LED3_Pin|LED4_Pin;
+  GPIO_InitStruct.Pin = LED2_BT_Pin|LED3_LINE_Pin|LED4_USB_Pin;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
@@ -663,7 +667,7 @@ void Error_Handler(void)
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
-  LL_GPIO_ResetOutputPin(LED1_GPIO_Port, LED1_Pin);
+  LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
   while (1)
   {
   }

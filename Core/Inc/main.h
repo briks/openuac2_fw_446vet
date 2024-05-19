@@ -73,14 +73,14 @@ void Error_Handler(void);
 #define RELAY_ON_GPIO_Port GPIOC
 #define PDN_Pin LL_GPIO_PIN_14
 #define PDN_GPIO_Port GPIOB
-#define LED1_Pin LL_GPIO_PIN_15 // Spdif
-#define LED1_GPIO_Port GPIOB
-#define LED2_Pin LL_GPIO_PIN_8  // BT
-#define LED2_GPIO_Port GPIOD
-#define LED3_Pin LL_GPIO_PIN_9  // Line
-#define LED3_GPIO_Port GPIOD
-#define LED4_Pin LL_GPIO_PIN_10 // USB
-#define LED4_GPIO_Port GPIOD
+#define LED1_SPDIF_Pin LL_GPIO_PIN_15
+#define LED1_SPDIF_GPIO_Port GPIOB
+#define LED2_BT_Pin LL_GPIO_PIN_8
+#define LED2_BT_GPIO_Port GPIOD
+#define LED3_LINE_Pin LL_GPIO_PIN_9
+#define LED3_LINE_GPIO_Port GPIOD
+#define LED4_USB_Pin LL_GPIO_PIN_10
+#define LED4_USB_GPIO_Port GPIOD
 #define MUX_EN_Pin LL_GPIO_PIN_11
 #define MUX_EN_GPIO_Port GPIOA
 #define MUX_SEL_Pin LL_GPIO_PIN_12
