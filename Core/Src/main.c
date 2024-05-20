@@ -121,7 +121,7 @@ int main(void)
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
   LL_GPIO_SetOutputPin(ANALOG_ON_GPIO_Port,ANALOG_ON_Pin);
-  LL_mDelay(100);
+  HAL_Delay(100); // osDelay works also here
   LL_GPIO_ResetOutputPin(PDN_GPIO_Port,PDN_Pin);
   LL_GPIO_ResetOutputPin(MUX_EN_GPIO_Port,MUX_EN_Pin);
   LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port,MUX_SEL_Pin);
@@ -129,20 +129,6 @@ int main(void)
   MX_USB_DEVICE_Init();
   LL_TIM_EnableIT_UPDATE(TIM3);
   LL_TIM_EnableCounter(TIM3);
-
-  /* LED check at startup */
-  LL_GPIO_SetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
-  LL_mDelay(100);
-  LL_GPIO_SetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
-  LL_mDelay(100);
-  LL_GPIO_SetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
-  LL_mDelay(100);
-  LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
-  LL_mDelay(300);
-  LL_GPIO_ResetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
-  LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
-  LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
-  LL_GPIO_ResetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
 
   /* USER CODE END 2 */
 
@@ -701,6 +687,21 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
+
+  /* LED check at startup */
+  LL_GPIO_SetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
+  osDelay(100);
+  LL_GPIO_SetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
+  osDelay(100);
+  LL_GPIO_SetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
+  osDelay(100);
+  LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+  osDelay(300);
+  LL_GPIO_ResetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
+  LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
+  LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
+  LL_GPIO_ResetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+
   /* Infinite loop */
   for(;;)
   {

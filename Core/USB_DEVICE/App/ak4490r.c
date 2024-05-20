@@ -1,6 +1,7 @@
 #include "ak4490r.h"
 #include "usbd_audio_if.h"
 #include "main.h"
+#include "cmsis_os.h"
 
 extern I2C_HandleTypeDef AK4490R_I2C_HANDLE;
 
@@ -25,10 +26,10 @@ static AK4490R_RegisterTypeDef reg;
 uint8_t AK4490R_Init()
 {
 	LL_GPIO_ResetOutputPin(PDN_GPIO_Port, PDN_Pin);
-	LL_mDelay(10);
-	LL_GPIO_SetOutputPin(PDN_GPIO_Port, PDN_Pin);
-	LL_mDelay(100);
-	//reg1 input selection: set 32bits data default and i2s 1100 set to i2s input (no auto detect) 0000
+    HAL_Delay(10); // called from interrupt, osDelay not allowed
+    LL_GPIO_SetOutputPin(PDN_GPIO_Port, PDN_Pin);
+    HAL_Delay(100); // Delay in interrupt, not so good
+    //reg1 input selection: set 32bits data default and i2s 1100 set to i2s input (no auto detect) 0000
 	//reg7 filter bw and system mute: set the mute b10000001 or normal b10000000
 	//reg8: set gpio1 to spdif input & gpio2 to whatever analog input for shutdown d13d8
 	//reg11: set wich input use when decoding SPDIF data GPIO1: d3d0
@@ -144,8 +145,8 @@ void AK4490R_ProcessEvents()
 {
 	if (play)
 	{
-		LL_mDelay(20);
-		registre = 0x80;
+        osDelay(20);
+        registre = 0x80;
 		//while (HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x07, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, 1000) != HAL_OK);
 		play = 0;
 	}
