@@ -25,6 +25,9 @@ target_include_directories(
     "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Drivers\\CMSIS\\Device\\ST\\STM32F4xx\\Include>"
     "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Drivers\\CMSIS\\Include>"
     "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Drivers\\STM32F4xx_HAL_Driver\\Inc\\Legacy>"
+    "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Middlewares\\Third_Party\\FreeRTOS\\Source\\include>"
+    "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Middlewares\\Third_Party\\FreeRTOS\\Source\\CMSIS_RTOS>"
+    "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Middlewares\\Third_Party\\FreeRTOS\\Source\\portable\\GCC\\ARM_CM4F>"
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Core\\Inc>"
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Drivers/STM32_USB_Device_Library/Core/Inc>"
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Core/USB_DEVICE/App>"
@@ -33,6 +36,9 @@ target_include_directories(
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Drivers\\CMSIS\\Device\\ST\\STM32F4xx\\Include>"
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Drivers\\CMSIS\\Include>"
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Drivers\\STM32F4xx_HAL_Driver\\Inc\\Legacy>"
+    "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Middlewares\\Third_Party\\FreeRTOS\\Source\\include>"
+    "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Middlewares\\Third_Party\\FreeRTOS\\Source\\CMSIS_RTOS>"
+    "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Middlewares\\Third_Party\\FreeRTOS\\Source\\portable\\GCC\\ARM_CM4F>"
 )
 
 target_compile_options(
@@ -80,8 +86,10 @@ target_link_options(
 
 target_sources(
     ${TARGET_NAME} PRIVATE
+    "Core\\Src\\freertos.c"
     "Core\\Src\\main.c"
     "Core\\Src\\stm32f4xx_hal_msp.c"
+    "Core\\Src\\stm32f4xx_hal_timebase_tim.c"
     "Core\\Src\\stm32f4xx_it.c"
     "Core\\Src\\syscalls.c"
     "Core\\Src\\sysmem.c"
@@ -95,6 +103,16 @@ target_sources(
     "Core\\USB_DEVICE\\App\\usbd_audio.c"
     "Core\\USB_DEVICE\\App\\usbd_desc.c"
     "Core\\USB_DEVICE\\Target\\usbd_conf.c"
+    "Middlewares\\Third_Party\\FreeRTOS\\Source\\CMSIS_RTOS\\cmsis_os.c"
+    "Middlewares\\Third_Party\\FreeRTOS\\Source\\croutine.c"
+    "Middlewares\\Third_Party\\FreeRTOS\\Source\\event_groups.c"
+    "Middlewares\\Third_Party\\FreeRTOS\\Source\\list.c"
+    "Middlewares\\Third_Party\\FreeRTOS\\Source\\portable\\GCC\\ARM_CM4F\\port.c"
+    "Middlewares\\Third_Party\\FreeRTOS\\Source\\portable\\MemMang\\heap_4.c"
+    "Middlewares\\Third_Party\\FreeRTOS\\Source\\queue.c"
+    "Middlewares\\Third_Party\\FreeRTOS\\Source\\stream_buffer.c"
+    "Middlewares\\Third_Party\\FreeRTOS\\Source\\tasks.c"
+    "Middlewares\\Third_Party\\FreeRTOS\\Source\\timers.c"
     "Drivers\\STM32_USB_Device_Library\\Core\\Src\\usbd_core.c"
     "Drivers\\STM32_USB_Device_Library\\Core\\Src\\usbd_ctlreq.c"
     "Drivers\\STM32_USB_Device_Library\\Core\\Src\\usbd_ioreq.c"
