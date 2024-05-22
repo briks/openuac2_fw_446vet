@@ -371,13 +371,13 @@ static void MX_TIM3_Init(void)
   /**TIM3 GPIO Configuration
   PD2   ------> TIM3_ETR
   */
-  GPIO_InitStruct.Pin = LL_GPIO_PIN_2;
+  GPIO_InitStruct.Pin = TIM3_ETR_AUDIO_SYNC_Pin;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
   GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
   GPIO_InitStruct.Alternate = LL_GPIO_AF_2;
-  LL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+  LL_GPIO_Init(TIM3_ETR_AUDIO_SYNC_GPIO_Port, &GPIO_InitStruct);
 
   /* TIM3 interrupt Init */
   NVIC_SetPriority(TIM3_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),5, 0));
@@ -661,10 +661,10 @@ static void MX_GPIO_Init(void)
   LL_EXTI_Init(&EXTI_InitStruct);
 
   /**/
-  LL_GPIO_SetPinPull(GPIOD, LL_GPIO_PIN_11, LL_GPIO_PULL_NO);
+  LL_GPIO_SetPinPull(EXT_INT_ENCODER_GPIO_Port, EXT_INT_ENCODER_Pin, LL_GPIO_PULL_NO);
 
   /**/
-  LL_GPIO_SetPinMode(GPIOD, LL_GPIO_PIN_11, LL_GPIO_MODE_INPUT);
+  LL_GPIO_SetPinMode(EXT_INT_ENCODER_GPIO_Port, EXT_INT_ENCODER_Pin, LL_GPIO_MODE_INPUT);
 
   /* EXTI interrupt init*/
   NVIC_SetPriority(EXTI15_10_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),5, 0));
