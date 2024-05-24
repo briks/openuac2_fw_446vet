@@ -422,7 +422,7 @@ static void MX_TIM4_Init(void)
   TIM_MasterConfigTypeDef sMasterConfig = {0};
 
   /* USER CODE BEGIN TIM4_Init 1 */
-
+  // Rotary_Encoder_Switch
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
   htim4.Init.Prescaler = 0;
