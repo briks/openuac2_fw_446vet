@@ -5,13 +5,19 @@
 
 #define MAX_RECEIVED_VOLUME 100 // Max value send by the driver, assuming the min is 0
 #define MAX_ATTENUATION     64  // in dB, knowing that the step is 0.5dB in the register, max 127.5, so max 127 here.
+#define TIMEOUT_I2C_DELAY 10    // in ms (ticks), could be HAL_MAX_DELAY for infinite delay
 
 extern I2C_HandleTypeDef AK4490R_I2C_HANDLE;
 
 static uint8_t play;
 uint8_t requested_attenuation  = 255; // Set the max
 uint8_t configured_attenuation = 0;   // Set the min, to force a set @requested_attenuation after init.
+uint8_t requested_mute = 0;
+uint8_t configured_mute = 1; // Force a set @requested_mute after init.
+AUDIO_FormatTypeDef requested_format = AUDIO_FORMAT_PCM;
+AUDIO_FormatTypeDef configured_format = AUDIO_FORMAT_DSD; // Force a set @requested_format after init.
 uint8_t regread;
+uint8_t status_register = 0;
 uint8_t registre;
 
 AUDIO_CodecTypeDef ak4490r_instance =
@@ -26,7 +32,7 @@ AUDIO_CodecTypeDef ak4490r_instance =
         AK4490R_SetVolume
 };
 
-static AK4490R_RegisterTypeDef reg;
+//static AK4490R_RegisterTypeDef reg;
 
 uint8_t AK4490R_Init()
 {
@@ -46,11 +52,11 @@ uint8_t AK4490R_Init()
 
 	//reg14 normal operation b10001010 
 	registre = 0x8a;
-	HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&regread, sizeof(regread), HAL_MAX_DELAY );
-	HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, sizeof(registre), HAL_MAX_DELAY);
-	HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&regread, sizeof(regread), HAL_MAX_DELAY );
+    HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&regread, sizeof(regread), TIMEOUT_I2C_DELAY);
+    HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&registre, sizeof(registre), TIMEOUT_I2C_DELAY);
+    HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&regread, sizeof(regread), TIMEOUT_I2C_DELAY);
 
-	//reg1 input selection: set 32bits data default and i2s 1100 set to i2s input (no auto detect) 0000
+    //reg1 input selection: set 32bits data default and i2s 1100 set to i2s input (no auto detect) 0000
 	registre = 0xcc;
 	//HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x01, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, sizeof(registre), HAL_MAX_DELAY);
 
@@ -66,8 +72,8 @@ uint8_t AK4490R_Init()
 	//registre = 0xdc;
 	//reg27 setasrc enable, volume ch2 same as ch1, and allow volume update
 	registre = 0x8C;
-	HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG27_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, sizeof(registre), HAL_MAX_DELAY);
-	return 0;
+    HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG27_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&registre, sizeof(registre), TIMEOUT_I2C_DELAY);
+    return 0;
 }
 
 
@@ -80,41 +86,13 @@ uint8_t AK4490R_SetVolume(uint8_t vol) // receive a value between 0 and 100. Com
 
 uint8_t AK4490R_SetMute(uint8_t mute) // mute = 1 when mute is requested
 {
-	if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
-	{
-		if (mute)
-		{
-			registre = 0x81;
-		}
-		else
-		{
-			registre = 0x80;
-		}
-		//reg7 filter bw and system mute: set the mute b10000001 or normal b10000000
-		HAL_I2C_Mem_Write_IT(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG7_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1);
-	}
-
+    requested_mute = mute;
 	return 0;
 }
 
 uint8_t AK4490R_SetFormat(uint8_t format)
 {
-	if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
-	{
-		if (format == AUDIO_FORMAT_DSD)
-		{
-			reg.control3 |= AK4490R_DP;
-		}
-		else
-		{
-			reg.control3 &= ~AK4490R_DP;
-		}
-
-//		reg.control1 &= ~AK4490R_RSTN;
-		//HAL_I2C_Mem_Write_IT(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_CONTROL3_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&reg.control3, 1);
-//		reg_reset = 1;
-	}
-
+    requested_format = format;
 	return 0;
 }
 
@@ -126,37 +104,100 @@ uint8_t AK4490R_Play()
 
 uint8_t AK4490R_Stop()
 {
-	if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
-	{
-		registre = 0x81;
-	}
+	// if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
+	// {
+	// 	registre = 0x81;
+	// }
 
 	//HAL_I2C_Mem_Write_IT(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x07, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1);
 	return 0;
 }
 
 void AK4490R_ProcessEvents()
-{
-	if (play)
-	{
+{// Process audio events in the task context, in order of priority
+    HAL_StatusTypeDef I2C_Status = HAL_OK;
+    if (play)
+    {
         // osDelay(20);
         // registre = 0x80;
 		//while (HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x07, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, 1000) != HAL_OK);
 		play = 0;
 	}
 
+    if (requested_mute != configured_mute)
+    {// adjust mute state
+        if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
+        {
+            configured_mute = requested_mute;
+            if (configured_mute)
+            {
+                registre = 0x81;
+            }
+            else
+            {
+                registre = 0x80;
+            }
+            // reg7 filter bw and system mute: set the mute b10000001 or normal b10000000
+            I2C_Status |= HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG7_ADDR, I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
+        }
+    }
+
+    if (requested_format != configured_format)
+    { // adjust audio format (DSD or not)
+        configured_format = requested_format;
+        // Set by default in auto mode, see AK4490R_REG1_ADDR:auto_select
+        // if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
+        // {
+        //     HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG7_ADDR, I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
+        //     if (configured_format == AUDIO_FORMAT_DSD)
+        //     {
+        //         registre |= AK4490R_DP;
+        //     }
+        //     else
+        //     {
+        //         registre &= ~AK4490R_DP;
+        //     }
+
+        //     //		reg.control1 &= ~AK4490R_RSTN;
+        //     HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_CONTROL3_ADDR, I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
+        //     //		reg_reset = 1;
+        // }
+    }
+
     if (requested_attenuation != configured_attenuation)
-    {// adjust volume
+    { // adjust volume
         if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
         {
             configured_attenuation = requested_attenuation;
             // Write an attenuation in the register in range 0-255
-            HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&configured_attenuation, 1, HAL_MAX_DELAY);
+            I2C_Status |= HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT, &configured_attenuation, 1, TIMEOUT_I2C_DELAY);
             // not needed to update volume2, see AK4490R_REG27_ADDR configuration (ch1_volume)
-            // HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG16_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, HAL_MAX_DELAY);
-            // HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, HAL_MAX_DELAY );
+            // HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG16_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, TIMEOUT_I2C_DELAY);
+            // HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, TIMEOUT_I2C_DELAY );
         }
     }
+
+    /* Read status
+    [3] dop_valid Contains the status of the DoP decoder (DSD over PCM)
+        1’b0 : The DoP decoder has not detected a valid DoP signal
+        1’b1 : The DoP decoder has detected a valid DoP signaI2S input
+    [2] spdif_valid Contains the status of the SPDIF decoder.
+        1’b0 : The SPDIF decoder has not found a valid SPDIF signal.
+        1’b1 : The SPDIF decoder has detected a valid SPDIF
+    [1]   i2s_select   Contains the status of the I2S decoder.
+        1’b0: The I2S decoder has not found a valid frame clock or bit clock.
+        1’b1: The I2S decoder has detected a valid frame clock and bit clock arrangement
+    [0] dsd select Contains the status of the DSD decoder.
+        1’b0: The DSD decoder is not being used.
+        1’b1: The DSD decoder is being used as a fallback option if I2S has failed to decode their respective input signals.
+    */
+    I2C_Status |= HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG96_ADDR, I2C_MEMADD_SIZE_8BIT, &status_register, 1, TIMEOUT_I2C_DELAY);
+    if (I2C_Status != HAL_OK)
+    {
+        Error_Handler_nonBlocking("I2C read failure", ERROR_I2C);
+    }
+    else
+    {
+        Error_cancel_nonBlocking(ERROR_I2C);
+    }
 }
-
-

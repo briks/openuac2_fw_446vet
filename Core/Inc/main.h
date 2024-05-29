@@ -47,6 +47,12 @@ extern "C" {
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
+typedef enum
+{
+    BLOCKING_ERROR,
+    ERROR_I2C,
+    ERROR_MAX_NBR
+} errorNbr;
 
 /* USER CODE END ET */
 
@@ -63,8 +69,10 @@ extern "C" {
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
-/* USER CODE BEGIN EFP */
 
+/* USER CODE BEGIN EFP */
+void Error_cancel_nonBlocking(errorNbr errorBit_nBr);
+void Error_Handler_nonBlocking(char *errorStr, errorNbr errorBit_nBr);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
