@@ -4,6 +4,7 @@
 #include "usbd_ctlreq.h"
 #include "usbd_audio_if.h"
 #include "audio_desc.h"
+#include "ak4490r.h"
 
 #ifdef USE_USBD_COMPOSITE
 #error "Composite device is unsupported."
@@ -544,7 +545,7 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
   case FEATURE_UNIT_ID:
       if (HIBYTE(req->wValue) == FU_VOLUME_CONTROL)
       {
-          SET_DATA(pbuf, uint16_t, AUDIO_CUR_VOL);
+          SET_DATA(pbuf, uint16_t, configured_volume);
       }
       else if (HIBYTE(req->wValue) == FU_MUTE_CONTROL)
       {

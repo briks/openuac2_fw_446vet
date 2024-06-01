@@ -5,13 +5,13 @@
 
 #define MAX_RECEIVED_VOLUME 100 // Max value send by the driver, assuming the min is 0
 #define MAX_ATTENUATION     64  // in dB, knowing that the step is 0.5dB in the register, max 127.5, so max 127 here.
-#define TIMEOUT_I2C_DELAY 10    // in ms (ticks), could be HAL_MAX_DELAY for infinite delay
+#define TIMEOUT_I2C_DELAY   10  // in ms (ticks), could be HAL_MAX_DELAY for infinite delay
 
 extern I2C_HandleTypeDef AK4490R_I2C_HANDLE;
 
 static uint8_t play;
-uint8_t requested_attenuation  = 255; // Set the max
-uint8_t configured_attenuation = 0;   // Set the min, to force a set @requested_attenuation after init.
+uint8_t requested_volume = AUDIO_CUR_VOL; // Volume set after init, windows range [0..100]
+uint8_t configured_volume = 0xFF;   // Set a differente value, to force a set @requested_attenuation after init.
 uint8_t requested_mute = 0;
 uint8_t configured_mute = 1; // Force a set @requested_mute after init.
 AUDIO_FormatTypeDef requested_format = AUDIO_FORMAT_PCM;
@@ -79,9 +79,8 @@ uint8_t AK4490R_Init()
 
 uint8_t AK4490R_SetVolume(uint8_t vol) // receive a value between 0 and 100. Compare to windows : 0->0, 1->0, then n-1 up to 99, and 100->100
 {
-    vol = MAX_RECEIVED_VOLUME - (uint32_t)vol;
-    requested_attenuation = (vol * vol) * MAX_ATTENUATION * 2 / (MAX_RECEIVED_VOLUME * MAX_RECEIVED_VOLUME); // attenuation in range 0-255
-	return 0;
+    requested_volume = vol;
+    return 0;
 }
 
 uint8_t AK4490R_SetMute(uint8_t mute) // mute = 1 when mute is requested
@@ -194,13 +193,17 @@ void AK4490R_ProcessEvents()
         // }
     }
 
-    if (requested_attenuation != configured_attenuation)
+    if (requested_volume != configured_volume)
     { // adjust volume
         if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
         {
-            configured_attenuation = requested_attenuation;
+            static uint8_t configured_attenuation;
+            configured_volume = requested_volume;
+            uint32_t vol = MAX_RECEIVED_VOLUME - (uint32_t)configured_volume;
+            configured_attenuation = (vol * vol) * MAX_ATTENUATION * 2 / (MAX_RECEIVED_VOLUME * MAX_RECEIVED_VOLUME); // attenuation in range 0-255
             // Write an attenuation in the register in range 0-255
-            I2C_Status |= HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT, &configured_attenuation, 1, TIMEOUT_I2C_DELAY);
+            I2C_Status |= HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
+                                            &configured_attenuation, 1, TIMEOUT_I2C_DELAY);
             // not needed to update volume2, see AK4490R_REG27_ADDR configuration (ch1_volume)
             // HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG16_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, TIMEOUT_I2C_DELAY);
             // HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, TIMEOUT_I2C_DELAY );
