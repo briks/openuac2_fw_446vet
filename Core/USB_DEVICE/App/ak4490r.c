@@ -86,8 +86,11 @@ uint8_t AK4490R_SetVolume(uint8_t vol) // receive a value between 0 and 100. Com
 
 uint8_t AK4490R_SetMute(uint8_t mute) // mute = 1 when mute is requested
 {
-    requested_mute = mute;
-	return 0;
+    if (mute)
+        requested_mute = mute;
+    else
+        requested_mute = 0;
+    return 0;
 }
 
 uint8_t AK4490R_SetFormat(uint8_t format)
@@ -115,7 +118,34 @@ uint8_t AK4490R_Stop()
 
 void AK4490R_ProcessEvents()
 {// Process audio events in the task context, in order of priority
-    HAL_StatusTypeDef I2C_Status = HAL_OK;
+    static HAL_StatusTypeDef I2C_Status = HAL_OK;
+
+    /* Read status
+    [3] dop_valid Contains the status of the DoP decoder (DSD over PCM)
+        b0 : The DoP decoder has not detected a valid DoP signal
+        b1 : The DoP decoder has detected a valid DoP signaI2S input
+    [2] spdif_valid Contains the status of the SPDIF decoder.
+        b0 : The SPDIF decoder has not found a valid SPDIF signal.
+        b1 : The SPDIF decoder has detected a valid SPDIF
+    [1]   i2s_select   Contains the status of the I2S decoder.
+        0: The I2S decoder has not found a valid frame clock or bit clock.
+        b1: The I2S decoder has detected a valid frame clock and bit clock arrangement
+    [0] dsd select Contains the status of the DSD decoder.
+        b0: The DSD decoder is not being used.
+        b1: The DSD decoder is being used as a fallback option if I2S has failed to decode their respective input signals.
+    */
+    I2C_Status |= HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG96_ADDR, I2C_MEMADD_SIZE_8BIT, &status_register, 1, TIMEOUT_I2C_DELAY);
+    if (I2C_Status != HAL_OK)
+    {
+        Error_Handler_nonBlocking("I2C read failure", ERROR_I2C);
+        MX_I2C1_Init();
+        I2C_Status = HAL_OK; // reinit to see if better after init
+    }
+    else
+    {
+        Error_cancel_nonBlocking(ERROR_I2C);
+    }
+
     if (play)
     {
         // osDelay(20);
@@ -177,27 +207,4 @@ void AK4490R_ProcessEvents()
         }
     }
 
-    /* Read status
-    [3] dop_valid Contains the status of the DoP decoder (DSD over PCM)
-        1’b0 : The DoP decoder has not detected a valid DoP signal
-        1’b1 : The DoP decoder has detected a valid DoP signaI2S input
-    [2] spdif_valid Contains the status of the SPDIF decoder.
-        1’b0 : The SPDIF decoder has not found a valid SPDIF signal.
-        1’b1 : The SPDIF decoder has detected a valid SPDIF
-    [1]   i2s_select   Contains the status of the I2S decoder.
-        1’b0: The I2S decoder has not found a valid frame clock or bit clock.
-        1’b1: The I2S decoder has detected a valid frame clock and bit clock arrangement
-    [0] dsd select Contains the status of the DSD decoder.
-        1’b0: The DSD decoder is not being used.
-        1’b1: The DSD decoder is being used as a fallback option if I2S has failed to decode their respective input signals.
-    */
-    I2C_Status |= HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG96_ADDR, I2C_MEMADD_SIZE_8BIT, &status_register, 1, TIMEOUT_I2C_DELAY);
-    if (I2C_Status != HAL_OK)
-    {
-        Error_Handler_nonBlocking("I2C read failure", ERROR_I2C);
-    }
-    else
-    {
-        Error_cancel_nonBlocking(ERROR_I2C);
-    }
 }
