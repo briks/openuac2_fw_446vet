@@ -52,9 +52,11 @@ extern "C" {
 #define AUDIO_MIN_FREQ                  44100U
 #define AUDIO_MAX_FREQ                  768000U
 #define AUDIO_FREQ_RES                  1U
-#define AUDIO_MIN_VOL                   0U
-#define AUDIO_MAX_VOL                   100U
-#define AUDIO_VOL_RES                   1U
+#define AUDIO_CUR_VOL                   80//(50*256), used as startup volume, in windows unit [0..100]
+//from + 127.9961 dB(0x7FFF) down to - 127.9961 dB(0x8001) in steps of 1 / 256 dB or 0.00390625 dB(0x0001)
+#define AUDIO_MIN_VOL                   0//(  -128*256)
+#define AUDIO_MAX_VOL                   100// should be (0*256) in 1/256db, but in fact it's the max that windows will send, so let it be the windows max
+#define AUDIO_VOL_RES                   1//(  1*256)
 
 #define FEEDBACK_HS_BINTERVAL           4U
 #define STREAMING_HS_BINTERVAL          1U
@@ -97,6 +99,7 @@ extern "C" {
 #define CS_ENDPOINT                     0x25
 
 #define CS_SAM_FREQ_CONTROL             0x01
+/* A.17.7 Feature Unit Control Selectors*/
 #define FU_MUTE_CONTROL                 0x01
 #define FU_VOLUME_CONTROL               0x02
 
@@ -139,16 +142,15 @@ extern "C" {
     *(_type*)_ptr = (_value);         \
     _ptr += sizeof(_type)
 
-/* Audio Commands enumeration */
-typedef enum
-{
-    AUDIO_CMD_PLAY,
-    AUDIO_CMD_FORMAT,
-    AUDIO_CMD_STOP,
-    AUDIO_CMD_FREQ,
-    AUDIO_CMD_MUTE,
-    AUDIO_CMD_VOLUME,
-} AUDIO_CommandTypeDef;
+    /* Audio Commands enumeration */
+    typedef enum {
+        AUDIO_CMD_PLAY,
+        AUDIO_CMD_FORMAT,
+        AUDIO_CMD_STOP,
+        AUDIO_CMD_FREQ,
+        AUDIO_CMD_MUTE,
+        AUDIO_CMD_VOLUME,
+    } AUDIO_CommandTypeDef;
 
 typedef enum
 {

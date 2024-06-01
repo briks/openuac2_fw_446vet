@@ -69,10 +69,10 @@ typedef enum
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
-
 /* USER CODE BEGIN EFP */
 void Error_cancel_nonBlocking(errorNbr errorBit_nBr);
 void Error_Handler_nonBlocking(char *errorStr, errorNbr errorBit_nBr);
+void MX_I2C1_Init(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

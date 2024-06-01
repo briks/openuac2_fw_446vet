@@ -537,11 +537,25 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
   }
 
   USBD_memset(haudio->control.data, 0, USB_MAX_EP0_SIZE);
+  uint8_t *pbuf = haudio->control.data;
 
   switch (HIBYTE(req->wIndex))
   {
   case FEATURE_UNIT_ID:
-  	break;
+      if (HIBYTE(req->wValue) == FU_VOLUME_CONTROL)
+      {
+          SET_DATA(pbuf, uint16_t, AUDIO_CUR_VOL);
+      }
+      else if (HIBYTE(req->wValue) == FU_MUTE_CONTROL)
+      {
+          SET_DATA(pbuf, uint16_t, 0); // indicate to windows the mute state to display at startup, should reflect the internal state.
+      }
+      else
+      {
+          USBD_CtlError(pdev, req);
+          return;
+      }
+      break;
 
   case CLOCK_SOURCE_ID:
   	break;
@@ -606,7 +620,7 @@ static void AUDIO_REQ_GetRange(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *r
 	case FEATURE_UNIT_ID:
 		if (HIBYTE(req->wValue) == FU_VOLUME_CONTROL)
 		{
-			SET_DATA(pbuf, uint16_t, 1U);
+			SET_DATA(pbuf, uint16_t, 1U); // Number of subrange below
 			SET_DATA(pbuf, uint16_t, AUDIO_MIN_VOL);
 			SET_DATA(pbuf, uint16_t, AUDIO_MAX_VOL);
 			SET_DATA(pbuf, uint16_t, AUDIO_VOL_RES);
