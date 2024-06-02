@@ -22,7 +22,7 @@ typedef struct
 
 void AudioBuffer_Init(AudioBuffer* ab, uint32_t capacity);
 void AudioBuffer_Reset(AudioBuffer* ab, uint32_t capacity);
-uint8_t AudioBuffer_Recieve(AudioBuffer* ab, uint32_t rxSize);
+uint8_t AudioBuffer_Receive(AudioBuffer* ab, uint32_t rxSize);
 uint8_t AudioBuffer_Sync(AudioBuffer* ab, uint32_t txSize);
 
 #endif // _AUDIO_BUFFER_H_

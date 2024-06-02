@@ -18,7 +18,7 @@ void AudioBuffer_Reset(AudioBuffer* ab, uint32_t capacity)
 	ab->capacity = capacity;
 }
 
-uint8_t AudioBuffer_Recieve(AudioBuffer* ab, uint32_t rxSize)
+uint8_t AudioBuffer_Receive(AudioBuffer* ab, uint32_t rxSize)
 {
 	if (ab->size + rxSize <= ab->capacity)
 	{

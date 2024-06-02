@@ -481,7 +481,7 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
 				}
 			}
 
-			AudioBuffer_Recieve(&haudio->aud_buf, packetSize);
+			AudioBuffer_Receive(&haudio->aud_buf, packetSize);
 		}
 		else
 		{
@@ -504,7 +504,7 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
 				}
 			}
 
-			AudioBuffer_Recieve(&haudio->aud_buf, packetSize >> 2);
+			AudioBuffer_Receive(&haudio->aud_buf, packetSize >> 2);
 		}
 
 		if ((haudio->state == AUDIO_STATE_STOPPED) && (haudio->aud_buf.size > haudio->aud_buf.capacity >> 1))
