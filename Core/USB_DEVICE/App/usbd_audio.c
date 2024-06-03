@@ -115,10 +115,14 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 
   USBD_LL_FlushEP(pdev, STREAMING_EP_ADDR);
   USBD_LL_FlushEP(pdev, FEEDBACK_EP_ADDR);
+  USBD_LL_FlushEP(pdev, INTERRUPT_EP_ADDR);
   USBD_LL_OpenEP(pdev, STREAMING_EP_ADDR, USBD_EP_TYPE_ISOC, USB_HS_MAX_PACKET_SIZE);
   USBD_LL_OpenEP(pdev, FEEDBACK_EP_ADDR, USBD_EP_TYPE_ISOC, FEEDBACK_PACKET_SIZE);
+  USBD_LL_OpenEP(pdev, INTERRUPT_EP_ADDR, USBD_EP_TYPE_INTR, INTERRUPT_PACKET_SIZE);
+
   pdev->ep_out[STREAMING_EP_NUM].is_used = 1U;
   pdev->ep_in[FEEDBACK_EP_NUM].is_used = 1U;
+  pdev->ep_in[INTERRUPT_EP_NUM].is_used = 1U;
 
   haudio->alt_setting = 0;
   haudio->stream_type = AUDIO_FORMAT_PCM;
@@ -144,6 +148,7 @@ static uint8_t USBD_AUDIO_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 
   USBD_LL_CloseEP(pdev, STREAMING_EP_ADDR);
   USBD_LL_CloseEP(pdev, FEEDBACK_EP_ADDR);
+  USBD_LL_CloseEP(pdev, INTERRUPT_EP_ADDR);
   pdev->ep_out[STREAMING_EP_NUM].is_used = 0U;
   pdev->ep_out[STREAMING_EP_NUM].bInterval = 0U;
   pdev->ep_out[FEEDBACK_EP_NUM].is_used = 0U;

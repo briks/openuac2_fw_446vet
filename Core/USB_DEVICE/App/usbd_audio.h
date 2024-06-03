@@ -58,12 +58,13 @@ extern "C" {
 #define AUDIO_MAX_VOL                   100// should be (0*256) in 1/256db, but in fact it's the max that windows will send, so let it be the windows max
 #define AUDIO_VOL_RES                   1//(  1*256)
 
-#define FEEDBACK_HS_BINTERVAL           4U
-#define STREAMING_HS_BINTERVAL          1U
+#define FEEDBACK_HS_BINTERVAL           4U  // for 8µframe or 1 ms
+#define STREAMING_HS_BINTERVAL          1U  // for 1µframe of 1/8 ms
+#define INTERRUPT_HS_BINTERVAL          5U  // for 16µframe or 2 ms
 
 #define AUDIO_WTOTALLENGTH              60U
 
-#define USB_AUDIO_CONFIG_DESC_SIZE      201U
+#define USB_AUDIO_CONFIG_DESC_SIZE      208U
 
 #define USB_AUDIO_DESC_SIZE             0x09U
 
@@ -74,6 +75,7 @@ extern "C" {
 #define AUDIO_REQ_RANGE                 0x02U
 
 #define FEEDBACK_PACKET_SIZE            4U
+#define INTERRUPT_PACKET_SIZE           6U
 
 #define AUDIO_BUFFER_PACKET_NUM         128U
 #define AUDIO_BUF_SIZE (AUDIO_BUFFER_PACKET_NUM * (AUDIO_MAX_FREQ / 1000U))
@@ -133,8 +135,11 @@ extern "C" {
 #define STREAMING_EP_ATTRIB             0x05
 #define FEEDBACK_EP_ADDR                (STREAMING_EP_ADDR | 0x80)
 #define FEEDBACK_EP_ATTRIB              0x11
+#define INTERRUPT_EP_ADDR               (0x02 | 0x80)
+#define INTERRUPT_EP_ATTRIB             0x03 // transfer type interrupt 
 #define STREAMING_EP_NUM                (STREAMING_EP_ADDR & 0xF)
 #define FEEDBACK_EP_NUM                 (FEEDBACK_EP_ADDR & 0xF)
+#define INTERRUPT_EP_NUM                 (INTERRUPT_EP_ADDR & 0xF)
 
 #define EP_GENERAL                      0x01
 
