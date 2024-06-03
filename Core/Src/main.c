@@ -151,6 +151,7 @@ int main(void)
   LL_GPIO_ResetOutputPin(PDN_GPIO_Port,PDN_Pin);
   LL_GPIO_ResetOutputPin(MUX_EN_GPIO_Port,MUX_EN_Pin);
   LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port,MUX_SEL_Pin);
+  AK4490R_ProcessEvents(); // Call it one time to init values, before starting usb.
 
   MX_USB_DEVICE_Init();
   LL_TIM_EnableIT_UPDATE(TIM3);

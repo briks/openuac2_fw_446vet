@@ -11,7 +11,7 @@ extern I2C_HandleTypeDef AK4490R_I2C_HANDLE;
 
 static uint8_t play;
 uint8_t requested_volume = AUDIO_CUR_VOL; // Volume set after init, windows range [0..100]
-uint8_t configured_volume = 0xFF;   // Set a differente value, to force a set @requested_attenuation after init.
+uint8_t configured_volume = 49;   // Set a differente value, to force a set @requested_attenuation after init.
 uint8_t requested_mute = 0;
 uint8_t configured_mute = 1; // Force a set @requested_mute after init.
 AUDIO_FormatTypeDef requested_format = AUDIO_FORMAT_PCM;
