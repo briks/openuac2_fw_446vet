@@ -22,19 +22,19 @@ uint8_t registre;
 
 AUDIO_CodecTypeDef ak4490r_instance =
 {
-        AK4490R_Init,
+        AK4490R_DAC_Init,
         NULL,
-        AK4490R_Play,
-        AK4490R_SetFormat,
-        AK4490R_Stop,
+        AK4490R_DAC_Play,
+        AK4490R_DAC_SetFormat,
+        AK4490R_DAC_Stop,
         NULL,
-        AK4490R_SetMute,
-        AK4490R_SetVolume
+        AK4490R_DAC_SetMute,
+        AK4490R_DAC_SetVolume
 };
 
 //static AK4490R_RegisterTypeDef reg;
 
-uint8_t AK4490R_Init()
+uint8_t AK4490R_DAC_Init()
 {
 	LL_GPIO_ResetOutputPin(PDN_GPIO_Port, PDN_Pin);
     HAL_Delay(10); // called from interrupt, osDelay not allowed
@@ -77,13 +77,13 @@ uint8_t AK4490R_Init()
 }
 
 
-uint8_t AK4490R_SetVolume(uint8_t vol) // receive a value between 0 and 100. Compare to windows : 0->0, 1->0, then n-1 up to 99, and 100->100
+uint8_t AK4490R_DAC_SetVolume(uint8_t vol) // receive a value between 0 and 100. Compare to windows : 0->0, 1->0, then n-1 up to 99, and 100->100
 {
     requested_volume = vol;
     return 0;
 }
 
-uint8_t AK4490R_SetMute(uint8_t mute) // mute = 1 when mute is requested
+uint8_t AK4490R_DAC_SetMute(uint8_t mute) // mute = 1 when mute is requested
 {
     if (mute)
         requested_mute = mute;
@@ -92,19 +92,19 @@ uint8_t AK4490R_SetMute(uint8_t mute) // mute = 1 when mute is requested
     return 0;
 }
 
-uint8_t AK4490R_SetFormat(uint8_t format)
+uint8_t AK4490R_DAC_SetFormat(uint8_t format)
 {
     requested_format = format;
 	return 0;
 }
 
-uint8_t AK4490R_Play()
+uint8_t AK4490R_DAC_Play()
 {
 	play = 1;
 	return 0;
 }
 
-uint8_t AK4490R_Stop()
+uint8_t AK4490R_DAC_Stop()
 {
 	// if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
 	// {

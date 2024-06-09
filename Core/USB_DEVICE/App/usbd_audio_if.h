@@ -42,14 +42,14 @@ typedef enum _AudioItfState
 
 typedef struct
 {
-	uint8_t (*Init)(void);
-	uint8_t (*DeInit)(void);
-	uint8_t (*Play)(void);
-	uint8_t (*Format)(uint8_t);
-	uint8_t (*Stop)(void);
-	uint8_t (*Freq)(uint32_t);
-	uint8_t (*Mute)(uint8_t);
-	uint8_t (*Volume)(uint8_t);
+	uint8_t (*DAC_Init)(void);
+	uint8_t (*DAC_DeInit)(void);
+	uint8_t (*DAC_Play)(void);
+	uint8_t (*DAC_Format)(uint8_t);
+	uint8_t (*DAC_Stop)(void);
+	uint8_t (*DAC_Freq)(uint32_t);
+	uint8_t (*DAC_Mute)(uint8_t);
+	uint8_t (*DAC_Volume)(uint8_t);
 } AUDIO_CodecTypeDef;
 
 #ifdef __cplusplus

@@ -126,7 +126,7 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 
   /* Initialize the Audio output Hardware layer */
   USBD_AUDIO_ItfTypeDef* itf = pdev->pUserData[pdev->classId];
-  if (itf->Init() != USBD_OK)
+  if (itf->AUDIO_Init() != USBD_OK)
   {
     return USBD_FAIL;
   }
@@ -151,9 +151,9 @@ static uint8_t USBD_AUDIO_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 
   if (pdev->pClassDataCmsit[pdev->classId] != NULL)
   {
-    ((USBD_AUDIO_ItfTypeDef *)pdev->pUserData[pdev->classId])->DeInit();
-    pdev->pClassDataCmsit[pdev->classId] = NULL;
-    pdev->pClassData = NULL;
+      ((USBD_AUDIO_ItfTypeDef *)pdev->pUserData[pdev->classId])->AUDIO_DeInit();
+      pdev->pClassDataCmsit[pdev->classId] = NULL;
+      pdev->pClassData = NULL;
   }
 
   return USBD_OK;
@@ -329,8 +329,8 @@ static uint8_t USBD_AUDIO_EP0_RxReady(USBD_HandleTypeDef *pdev)
 			}
 
 			haudio->feedback_value = haudio->feedback_base;
-			itf->AudioCmd(haudio->control.data, haudio->control.len, AUDIO_CMD_FREQ);
-		}
+            itf->AUDIO_Cmd(haudio->control.data, haudio->control.len, AUDIO_CMD_FREQ);
+        }
 		else
 		{
 			return USBD_FAIL;
@@ -341,12 +341,12 @@ static uint8_t USBD_AUDIO_EP0_RxReady(USBD_HandleTypeDef *pdev)
 		switch (haudio->control.cmd)
 		{
 		case FU_MUTE_CONTROL:
-			itf->AudioCmd(haudio->control.data, haudio->control.len, AUDIO_CMD_MUTE);
-			break;
+            itf->AUDIO_Cmd(haudio->control.data, haudio->control.len, AUDIO_CMD_MUTE);
+            break;
 
 		case FU_VOLUME_CONTROL:
-			itf->AudioCmd(haudio->control.data, haudio->control.len, AUDIO_CMD_VOLUME);
-			break;
+            itf->AUDIO_Cmd(haudio->control.data, haudio->control.len, AUDIO_CMD_VOLUME);
+            break;
 
 		default:
 			return USBD_FAIL;
@@ -390,8 +390,8 @@ void USBD_AUDIO_Sync(USBD_HandleTypeDef *pdev)
 
   if ((haudio->aud_buf.state == AB_UDFL) && (haudio->state == AUDIO_STATE_PLAYING))
 	{
-		itf->AudioCmd(NULL, 0, AUDIO_CMD_STOP);
-		haudio->stream_type = AUDIO_FORMAT_PCM;
+        itf->AUDIO_Cmd(NULL, 0, AUDIO_CMD_STOP);
+        haudio->stream_type = AUDIO_FORMAT_PCM;
 		haudio->state = AUDIO_STATE_STOPPED;
 	}
 
@@ -453,7 +453,7 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
     	}
 
     	haudio->stream_type = stream_type;
-			itf->AudioCmd(&stream_type, 1, AUDIO_CMD_FORMAT);
+        itf->AUDIO_Cmd(&stream_type, 1, AUDIO_CMD_FORMAT);
     }
 
 		uint32_t packetSize = USBD_LL_GetRxDataSize(pdev, epnum);
@@ -509,8 +509,8 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
 
 		if ((haudio->state == AUDIO_STATE_STOPPED) && (haudio->aud_buf.size > haudio->aud_buf.capacity >> 1))
 		{
-			itf->AudioCmd(NULL, 0, AUDIO_CMD_PLAY);
-			haudio->state = AUDIO_STATE_PLAYING;
+            itf->AUDIO_Cmd(NULL, 0, AUDIO_CMD_PLAY);
+            haudio->state = AUDIO_STATE_PLAYING;
 		}
 
 		if (haudio->aud_buf.size > haudio->aud_buf.capacity - (haudio->aud_buf.capacity >> 2))

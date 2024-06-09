@@ -9,7 +9,7 @@ extern DMA_HandleTypeDef hdma_memtomem_dma2_stream0;
 
 static uint8_t AUDIO_Init();
 static uint8_t AUDIO_DeInit();
-static uint8_t AUDIO_AudioCmd(uint8_t* pbuf, uint32_t size, uint8_t cmd);
+static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd);
 static uint8_t AUDIO_GetState();
 
 extern AUDIO_CodecTypeDef ak4490r_instance;
@@ -20,7 +20,7 @@ USBD_AUDIO_ItfTypeDef USBD_AUDIO_fops =
 {
   AUDIO_Init,
   AUDIO_DeInit,
-  AUDIO_AudioCmd,
+  AUDIO_Cmd,
   AUDIO_GetState,
 };
 
@@ -47,25 +47,26 @@ static void RCC_I2S_SetFreq(uint32_t freq)
 
 static uint8_t AUDIO_Init()
 {
-	if (codec->Init != NULL)
-	{
-		codec->Init();
-	}
+    if (codec->DAC_Init != NULL)
+    {
+        codec->DAC_Init();
+    }
 
   return USBD_OK;
 }
 
 static uint8_t AUDIO_DeInit()
 {
-	if (codec->DeInit != NULL)
-	{
-		codec->DeInit();
-	}
+    if (codec->DAC_DeInit != NULL)
+    {
+        codec->DAC_DeInit();
+    }
 
   return USBD_OK;
 }
 
-static uint8_t AUDIO_AudioCmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
+/* Called from USBD_AUDIO_EP0_RxReady, USBD_AUDIO_Sync, USBD_AUDIO_DataOut */
+static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 {
 	USBD_AUDIO_HandleTypeDef* haudio = hUsbDeviceHS.pClassDataCmsit[hUsbDeviceHS.classId];
 	AudioBuffer* aud_buf = &haudio->aud_buf;
@@ -73,23 +74,23 @@ static uint8_t AUDIO_AudioCmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
   switch (cmd)
   {
 	case AUDIO_CMD_PLAY:
-		if (codec->Format != NULL)
-		{
-			codec->Format(AUDIO_FORMAT_PCM);
-		}
-		if (codec->Play != NULL)
-		{
-			codec->Play();
-		}
+        if (codec->DAC_Format != NULL)
+        {
+            codec->DAC_Format(AUDIO_FORMAT_PCM);
+        }
+        if (codec->DAC_Play != NULL)
+        {
+            codec->DAC_Play();
+        }
 		HAL_I2S_Transmit_DMA(&AUDIO_I2S_MSTR_HANDLE, (uint16_t*)aud_buf->mem, aud_buf->capacity >> 2);
 		LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
 		break;
 
 	case AUDIO_CMD_FORMAT:
-		if (codec->Format != NULL)
-		{
-			codec->Format(*pbuf);
-		}
+        if (codec->DAC_Format != NULL)
+        {
+            codec->DAC_Format(*pbuf);
+        }
 		if (*pbuf == AUDIO_FORMAT_DSD)
 		{
 			HAL_I2S_DMAStop(&AUDIO_I2S_MSTR_HANDLE);
@@ -101,10 +102,10 @@ static uint8_t AUDIO_AudioCmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 		break;
 
 	case AUDIO_CMD_STOP:
-		if (codec->Stop != NULL)
-		{
-			codec->Stop();
-		}
+        if (codec->DAC_Stop != NULL)
+        {
+            codec->DAC_Stop();
+        }
 		//HAL_I2S_DMAStop(&AUDIO_I2S_SLAVE_HANDLE);
 		HAL_I2S_DMAStop(&AUDIO_I2S_MSTR_HANDLE);
 //		HAL_DMA_Start_IT(&hdma_memtomem_dma2_stream0, (uint32_t)&zero, (uint32_t)aud_buf->mem, aud_buf->capacity >> 1);
@@ -114,25 +115,25 @@ static uint8_t AUDIO_AudioCmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 		break;
 
 	case AUDIO_CMD_FREQ:
-		if (codec->Freq != NULL)
-		{
-			codec->Freq(*(uint32_t*)pbuf);
-		}
+        if (codec->DAC_Freq != NULL)
+        {
+            codec->DAC_Freq(*(uint32_t *)pbuf);
+        }
 		RCC_I2S_SetFreq(*(uint32_t*)pbuf);
 		break;
 
 	case AUDIO_CMD_MUTE:
-		if (codec->Mute != NULL)
-		{
-			codec->Mute(*pbuf);
-		}
+        if (codec->DAC_Mute != NULL)
+        {
+            codec->DAC_Mute(*pbuf);
+        }
 		break;
 
 	case AUDIO_CMD_VOLUME:
-		if (codec->Volume != NULL)
-		{
-			codec->Volume(*pbuf);
-		}
+        if (codec->DAC_Volume != NULL)
+        {
+            codec->DAC_Volume(*pbuf);
+        }
 		break;
 
 	default:
@@ -142,6 +143,7 @@ static uint8_t AUDIO_AudioCmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
   return USBD_OK;
 }
 
+/* not called */
 static uint8_t AUDIO_GetState()
 {
 	return USBD_OK;
