@@ -153,9 +153,24 @@ int main(void)
   LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port,MUX_SEL_Pin);
   AK4490R_ProcessEvents(); // Call it one time to init values, before starting usb.
 
+  //start Amp! left
+  LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+  HAL_Delay(100);
+  LL_GPIO_SetOutputPin(On_L_GPIO_Port, On_L_Pin);
+  HAL_Delay(5000);
+  LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+  //start Amp! right
+  LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+  HAL_Delay(100);
+  LL_GPIO_SetOutputPin(On_R_GPIO_Port, On_R_Pin);
+  HAL_Delay(5000);
+  LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+
   MX_USB_DEVICE_Init();
   LL_TIM_EnableIT_UPDATE(TIM3);
   LL_TIM_EnableCounter(TIM3);
+  
+
 
   /* USER CODE END 2 */
 
@@ -605,10 +620,11 @@ static void MX_GPIO_Init(void)
   LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOD);
 
   /**/
-  LL_GPIO_ResetOutputPin(ANALOG_ON_GPIO_Port, ANALOG_ON_Pin);
+  LL_GPIO_ResetOutputPin(GPIOE, ANALOG_ON_Pin|Light_fire_R_Pin|Light_fire_L_Pin|Led_G_Pin
+                          |Led_R_Pin);
 
   /**/
-  LL_GPIO_ResetOutputPin(GPIOC, RELAY_ON_Pin|DSDOE_Pin);
+  LL_GPIO_ResetOutputPin(GPIOC, RELAY_ON_Pin|On_L_Pin|On_R_Pin|DSDOE_Pin);
 
   /**/
   LL_GPIO_ResetOutputPin(GPIOB, PDN_Pin|LED1_SPDIF_Pin);
@@ -620,15 +636,16 @@ static void MX_GPIO_Init(void)
   LL_GPIO_ResetOutputPin(GPIOA, MUX_EN_Pin|MUX_SEL_Pin);
 
   /**/
-  GPIO_InitStruct.Pin = ANALOG_ON_Pin;
+  GPIO_InitStruct.Pin = ANALOG_ON_Pin|Light_fire_R_Pin|Light_fire_L_Pin|Led_G_Pin
+                          |Led_R_Pin;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
   GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
-  LL_GPIO_Init(ANALOG_ON_GPIO_Port, &GPIO_InitStruct);
+  LL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /**/
-  GPIO_InitStruct.Pin = RELAY_ON_Pin|DSDOE_Pin;
+  GPIO_InitStruct.Pin = RELAY_ON_Pin|On_L_Pin|On_R_Pin|DSDOE_Pin;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
