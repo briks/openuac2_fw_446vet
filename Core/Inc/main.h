@@ -70,8 +70,20 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define ANALOG_ON_Pin LL_GPIO_PIN_2
 #define ANALOG_ON_GPIO_Port GPIOE
+#define Light_fire_R_Pin LL_GPIO_PIN_3
+#define Light_fire_R_GPIO_Port GPIOE
+#define Light_fire_L_Pin LL_GPIO_PIN_4
+#define Light_fire_L_GPIO_Port GPIOE
+#define Led_G_Pin LL_GPIO_PIN_5
+#define Led_G_GPIO_Port GPIOE
+#define Led_R_Pin LL_GPIO_PIN_6
+#define Led_R_GPIO_Port GPIOE
 #define RELAY_ON_Pin LL_GPIO_PIN_13
 #define RELAY_ON_GPIO_Port GPIOC
+#define On_L_Pin LL_GPIO_PIN_14
+#define On_L_GPIO_Port GPIOC
+#define On_R_Pin LL_GPIO_PIN_15
+#define On_R_GPIO_Port GPIOC
 #define PDN_Pin LL_GPIO_PIN_14
 #define PDN_GPIO_Port GPIOB
 #define LED1_SPDIF_Pin LL_GPIO_PIN_15
