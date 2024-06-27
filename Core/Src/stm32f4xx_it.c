@@ -42,6 +42,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
+extern uint8_t CommandeAmp;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -63,6 +64,7 @@ extern DMA_HandleTypeDef hdma_spi1_tx;
 extern DMA_HandleTypeDef hdma_spi3_tx;
 extern PCD_HandleTypeDef hpcd_USB_OTG_HS;
 extern TIM_HandleTypeDef htim6;
+extern TIM_HandleTypeDef htim7;
 
 /* USER CODE BEGIN EV */
 extern USBD_HandleTypeDef hUsbDeviceHS;
@@ -213,7 +215,28 @@ void I2C1_EV_IRQHandler(void)
 void EXTI15_10_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI15_10_IRQn 0 */
-
+  uint16_t count;
+  if (LL_GPIO_IsInputPinSet(GPIOD, GPIO_PIN_11)==1) //test voir si le BP est press�
+	{
+		HAL_TIM_Base_Start(&htim7); //on lance le timer7 lorsque le BP est press�
+	}
+	if (LL_GPIO_IsInputPinSet(GPIOD, GPIO_PIN_11)==0) //test voir si le BP est relach�
+	{
+		HAL_TIM_Base_Stop(&htim7); // on stop le timer7 car le BP viens d'�tre relach�
+		count=__HAL_TIM_GET_COUNTER(&htim7); // on lit la valeure du timer7, directement en ms
+		__HAL_TIM_SET_COUNTER(&htim7, 0); // on remet le timer7 � 0 pour etre pret pour un nouvel appuie
+		//if(count<1000 && count>100)
+		//{
+			if (CommandeAmp==0)
+			{
+				CommandeAmp=1;
+			}
+			else
+			{
+				CommandeAmp=0;
+			}
+		//}
+	}
   /* USER CODE END EXTI15_10_IRQn 0 */
   if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_11) != RESET)
   {

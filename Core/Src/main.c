@@ -49,15 +49,37 @@ I2S_HandleTypeDef hi2s3;
 DMA_HandleTypeDef hdma_spi1_tx;
 DMA_HandleTypeDef hdma_spi3_tx;
 
+SPI_HandleTypeDef hspi4;
+
 TIM_HandleTypeDef htim4;
+TIM_HandleTypeDef htim7;
+
+UART_HandleTypeDef huart2;
 
 PCD_HandleTypeDef hpcd_USB_OTG_HS;
 
 DMA_HandleTypeDef hdma_memtomem_dma2_stream0;
 DMA_HandleTypeDef hdma_memtomem_dma2_stream1;
 osThreadId defaultTaskHandle;
+osThreadId AmpONHandle;
+uint32_t AmpONBuffer[ 64 ];
+osStaticThreadDef_t AmpONControlBlock;
+osThreadId AmpOFFHandle;
+uint32_t AmpOFFBuffer[ 64 ];
+osStaticThreadDef_t AmpOFFControlBlock;
+osThreadId VolumeHandle;
+uint32_t VolumeBuffer[ 64 ];
+osStaticThreadDef_t VolumeControlBlock;
+osThreadId LedsHandle;
+uint32_t LedsBuffer[ 64 ];
+osStaticThreadDef_t LedsControlBlock;
+osThreadId SourceHandle;
+uint32_t SourceBuffer[ 64 ];
+osStaticThreadDef_t SourceControlBlock;
 /* USER CODE BEGIN PV */
 uint32_t errors_mask = 0;
+uint8_t CommandeAmp=0; // variable globale commande amplis on/off
+uint8_t EtatAmp=0; // variable globale etat des amplis on/off
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -65,12 +87,21 @@ void SystemClock_Config(void);
 void PeriphCommonClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
+//static void MX_I2C1_Init(void);
 static void MX_I2S1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_USB_OTG_HS_PCD_Init(void);
 static void MX_I2S3_Init(void);
 static void MX_TIM4_Init(void);
+static void MX_SPI4_Init(void);
+static void MX_USART2_UART_Init(void);
+static void MX_TIM7_Init(void);
 void StartDefaultTask(void const * argument);
+void StartAmpON(void const * argument);
+void StartAmpOFF(void const * argument);
+void StartVolume(void const * argument);
+void StartLeds(void const * argument);
+void StartSource(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -145,6 +176,9 @@ int main(void)
   MX_USB_OTG_HS_PCD_Init();
   MX_I2S3_Init();
   MX_TIM4_Init();
+  MX_SPI4_Init();
+  MX_USART2_UART_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
   LL_GPIO_SetOutputPin(ANALOG_ON_GPIO_Port,ANALOG_ON_Pin);
   HAL_Delay(100); // osDelay works also here
@@ -152,20 +186,6 @@ int main(void)
   LL_GPIO_ResetOutputPin(MUX_EN_GPIO_Port,MUX_EN_Pin);
   LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port,MUX_SEL_Pin);
   AK4490R_ProcessEvents(); // Call it one time to init values, before starting usb.
-
-  //start Amp! left
-  LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
-  HAL_Delay(100);
-  LL_GPIO_SetOutputPin(On_L_GPIO_Port, On_L_Pin);
-  HAL_Delay(5000);
-  LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
-  //start Amp! right
-  LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
-  HAL_Delay(100);
-  LL_GPIO_SetOutputPin(On_R_GPIO_Port, On_R_Pin);
-  HAL_Delay(5000);
-  LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
-
   MX_USB_DEVICE_Init();
   LL_TIM_EnableIT_UPDATE(TIM3);
   LL_TIM_EnableCounter(TIM3);
@@ -194,6 +214,26 @@ int main(void)
   /* definition and creation of defaultTask */
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+
+  /* definition and creation of AmpON */
+  osThreadStaticDef(AmpON, StartAmpON, osPriorityIdle, 0, 64, AmpONBuffer, &AmpONControlBlock);
+  AmpONHandle = osThreadCreate(osThread(AmpON), NULL);
+
+  /* definition and creation of AmpOFF */
+  osThreadStaticDef(AmpOFF, StartAmpOFF, osPriorityIdle, 0, 64, AmpOFFBuffer, &AmpOFFControlBlock);
+  AmpOFFHandle = osThreadCreate(osThread(AmpOFF), NULL);
+
+  /* definition and creation of Volume */
+  osThreadStaticDef(Volume, StartVolume, osPriorityIdle, 0, 64, VolumeBuffer, &VolumeControlBlock);
+  VolumeHandle = osThreadCreate(osThread(Volume), NULL);
+
+  /* definition and creation of Leds */
+  osThreadStaticDef(Leds, StartLeds, osPriorityIdle, 0, 64, LedsBuffer, &LedsControlBlock);
+  LedsHandle = osThreadCreate(osThread(Leds), NULL);
+
+  /* definition and creation of Source */
+  osThreadStaticDef(Source, StartSource, osPriorityIdle, 0, 64, SourceBuffer, &SourceControlBlock);
+  SourceHandle = osThreadCreate(osThread(Source), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -388,6 +428,44 @@ static void MX_I2S3_Init(void)
 }
 
 /**
+  * @brief SPI4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI4_Init(void)
+{
+
+  /* USER CODE BEGIN SPI4_Init 0 */
+
+  /* USER CODE END SPI4_Init 0 */
+
+  /* USER CODE BEGIN SPI4_Init 1 */
+
+  /* USER CODE END SPI4_Init 1 */
+  /* SPI4 parameter configuration*/
+  hspi4.Instance = SPI4;
+  hspi4.Init.Mode = SPI_MODE_MASTER;
+  hspi4.Init.Direction = SPI_DIRECTION_1LINE;
+  hspi4.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi4.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi4.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi4.Init.NSS = SPI_NSS_SOFT;
+  hspi4.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+  hspi4.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi4.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi4.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi4.Init.CRCPolynomial = 10;
+  if (HAL_SPI_Init(&hspi4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI4_Init 2 */
+
+  /* USER CODE END SPI4_Init 2 */
+
+}
+
+/**
   * @brief TIM3 Initialization Function
   * @param None
   * @retval None
@@ -467,20 +545,20 @@ static void MX_TIM4_Init(void)
   // Rotary_Encoder_Switch
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 0;
+  htim4.Init.Prescaler = 1;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 65535;
+  htim4.Init.Period = 255;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   sConfig.EncoderMode = TIM_ENCODERMODE_TI1;
-  sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC1Polarity = TIM_ICPOLARITY_FALLING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 0;
-  sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC1Filter = 3;
+  sConfig.IC2Polarity = TIM_ICPOLARITY_FALLING;
   sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC2Filter = 0;
+  sConfig.IC2Filter = 3;
   if (HAL_TIM_Encoder_Init(&htim4, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -494,6 +572,77 @@ static void MX_TIM4_Init(void)
   /* USER CODE BEGIN TIM4_Init 2 */
 
   /* USER CODE END TIM4_Init 2 */
+
+}
+
+/**
+  * @brief TIM7 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM7_Init(void)
+{
+
+  /* USER CODE BEGIN TIM7_Init 0 */
+
+  /* USER CODE END TIM7_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM7_Init 1 */
+
+  /* USER CODE END TIM7_Init 1 */
+  htim7.Instance = TIM7;
+  htim7.Init.Prescaler = 0;
+  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim7.Init.Period = 65535;
+  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_ENABLE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM7_Init 2 */
+
+  /* USER CODE END TIM7_Init 2 */
+
+}
+
+/**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_RTS_CTS;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
 
 }
 
@@ -621,23 +770,24 @@ static void MX_GPIO_Init(void)
 
   /**/
   LL_GPIO_ResetOutputPin(GPIOE, ANALOG_ON_Pin|Light_fire_R_Pin|Light_fire_L_Pin|Led_G_Pin
-                          |Led_R_Pin);
+                          |Led_R_Pin|PGA_M_Pin|SPI4_CS_Pin);
 
   /**/
-  LL_GPIO_ResetOutputPin(GPIOC, RELAY_ON_Pin|On_L_Pin|On_R_Pin|DSDOE_Pin);
+  LL_GPIO_ResetOutputPin(GPIOC, RELAY_ON_Pin|On_L_Pin|On_R_Pin|SEL_SPDIF_Pin
+                          |DSDOE_Pin);
 
   /**/
-  LL_GPIO_ResetOutputPin(GPIOB, PDN_Pin|LED1_SPDIF_Pin);
+  LL_GPIO_ResetOutputPin(GPIOB, PDN_Pin|LED1_SPDIF_Pin|BT_PWR_Pin);
 
   /**/
-  LL_GPIO_ResetOutputPin(GPIOD, LED2_BT_Pin|LED3_LINE_Pin|LED4_USB_Pin);
+  LL_GPIO_ResetOutputPin(GPIOD, LED2_BT_Pin|LED3_LINE_Pin|LED4_USB_Pin|BT_RST_Pin);
 
   /**/
   LL_GPIO_ResetOutputPin(GPIOA, MUX_EN_Pin|MUX_SEL_Pin);
 
   /**/
   GPIO_InitStruct.Pin = ANALOG_ON_Pin|Light_fire_R_Pin|Light_fire_L_Pin|Led_G_Pin
-                          |Led_R_Pin;
+                          |Led_R_Pin|PGA_M_Pin;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
@@ -645,7 +795,7 @@ static void MX_GPIO_Init(void)
   LL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /**/
-  GPIO_InitStruct.Pin = RELAY_ON_Pin|On_L_Pin|On_R_Pin|DSDOE_Pin;
+  GPIO_InitStruct.Pin = RELAY_ON_Pin|On_L_Pin|On_R_Pin|SEL_SPDIF_Pin;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
@@ -653,7 +803,15 @@ static void MX_GPIO_Init(void)
   LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /**/
-  GPIO_InitStruct.Pin = PDN_Pin|LED1_SPDIF_Pin;
+  GPIO_InitStruct.Pin = SPI4_CS_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(SPI4_CS_GPIO_Port, &GPIO_InitStruct);
+
+  /**/
+  GPIO_InitStruct.Pin = PDN_Pin|LED1_SPDIF_Pin|BT_PWR_Pin;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
@@ -661,7 +819,7 @@ static void MX_GPIO_Init(void)
   LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /**/
-  GPIO_InitStruct.Pin = LED2_BT_Pin|LED3_LINE_Pin|LED4_USB_Pin;
+  GPIO_InitStruct.Pin = LED2_BT_Pin|LED3_LINE_Pin|LED4_USB_Pin|BT_RST_Pin;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
@@ -695,13 +853,21 @@ static void MX_GPIO_Init(void)
   LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /**/
+  GPIO_InitStruct.Pin = DSDOE_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(DSDOE_GPIO_Port, &GPIO_InitStruct);
+
+  /**/
   LL_SYSCFG_SetEXTISource(LL_SYSCFG_EXTI_PORTD, LL_SYSCFG_EXTI_LINE11);
 
   /**/
   EXTI_InitStruct.Line_0_31 = LL_EXTI_LINE_11;
   EXTI_InitStruct.LineCommand = ENABLE;
   EXTI_InitStruct.Mode = LL_EXTI_MODE_IT;
-  EXTI_InitStruct.Trigger = LL_EXTI_TRIGGER_RISING;
+  EXTI_InitStruct.Trigger = LL_EXTI_TRIGGER_RISING_FALLING;
   LL_EXTI_Init(&EXTI_InitStruct);
 
   /**/
@@ -750,9 +916,130 @@ void StartDefaultTask(void const * argument)
   for(;;)
   {
   	AK4490R_ProcessEvents();
-    osDelay(2);
+    osDelay(10);
   }
   /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartAmpON */
+/**
+* @brief Function implementing the AmpON thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartAmpON */
+void StartAmpON(void const * argument)
+{
+  /* USER CODE BEGIN StartAmpON */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(100);
+    if(CommandeAmp==1 && EtatAmp==0)
+		{
+			__HAL_TIM_SET_COUNTER(&htim4, 127); // on reinit l'encoder pour ne pas compter les crans lorsque Amp off
+			//start Amp left& right
+      LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+      LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+      HAL_Delay(100);
+      LL_GPIO_SetOutputPin(On_L_GPIO_Port, On_L_Pin);
+      LL_GPIO_SetOutputPin(On_R_GPIO_Port, On_R_Pin);
+      HAL_Delay(5000);
+      LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+      HAL_Delay(100);
+      LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+      LL_GPIO_SetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
+      LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
+      EtatAmp=1;
+		}
+  }
+  /* USER CODE END StartAmpON */
+}
+
+/* USER CODE BEGIN Header_StartAmpOFF */
+/**
+* @brief Function implementing the AmpOFF thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartAmpOFF */
+void StartAmpOFF(void const * argument)
+{
+  /* USER CODE BEGIN StartAmpOFF */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(100);
+    if(CommandeAmp==0 && EtatAmp==1)
+		{
+			LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+      LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+      HAL_Delay(100);
+      LL_GPIO_ResetOutputPin(On_L_GPIO_Port, On_L_Pin);
+      LL_GPIO_ResetOutputPin(On_R_GPIO_Port, On_R_Pin);
+      HAL_Delay(100);
+      LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+      LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+      LL_GPIO_ResetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
+      LL_GPIO_ResetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
+			EtatAmp=0;
+		}
+  }
+  /* USER CODE END StartAmpOFF */
+}
+
+/* USER CODE BEGIN Header_StartVolume */
+/**
+* @brief Function implementing the Volume thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartVolume */
+void StartVolume(void const * argument)
+{
+  /* USER CODE BEGIN StartVolume */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(10);
+  }
+  /* USER CODE END StartVolume */
+}
+
+/* USER CODE BEGIN Header_StartLeds */
+/**
+* @brief Function implementing the Leds thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartLeds */
+void StartLeds(void const * argument)
+{
+  /* USER CODE BEGIN StartLeds */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(10);
+  }
+  /* USER CODE END StartLeds */
+}
+
+/* USER CODE BEGIN Header_StartSource */
+/**
+* @brief Function implementing the Source thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartSource */
+void StartSource(void const * argument)
+{
+  /* USER CODE BEGIN StartSource */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(10);
+  }
+  /* USER CODE END StartSource */
 }
 
 /**
@@ -783,13 +1070,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-    /* User can add his own implementation to report the HAL error return state */
-    Error_Handler_nonBlocking("blockingError", BLOCKING_ERROR);
-    __disable_irq();
-    LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
-    while (1)
-    {
-    }
+    LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+
   /* USER CODE END Error_Handler_Debug */
 }
 
