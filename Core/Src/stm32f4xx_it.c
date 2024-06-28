@@ -42,7 +42,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-extern uint8_t CommandeAmp;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -53,7 +53,6 @@ extern void USBD_AUDIO_UpdateFB(USBD_HandleTypeDef *pdev, uint32_t txCnt);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-extern TIM_HandleTypeDef htim7;
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -208,45 +207,41 @@ void I2C1_EV_IRQHandler(void)
   /* USER CODE END I2C1_EV_IRQn 1 */
 }
 
+uint32_t pressDuration = 0;
 /**
   * @brief This function handles EXTI line[15:10] interrupts.
   */
 void EXTI15_10_IRQHandler(void)
 {
-  /* USER CODE BEGIN EXTI15_10_IRQn 0 */
-  uint16_t count;
-  if (LL_GPIO_IsInputPinSet(GPIOD, GPIO_PIN_11)==1) //test voir si le BP est press�
-	{
-		HAL_TIM_Base_Start(&htim7); //on lance le timer7 lorsque le BP est press�
-	}
-	if (LL_GPIO_IsInputPinSet(GPIOD, GPIO_PIN_11)==0) //test voir si le BP est relach�
-	{
-		HAL_TIM_Base_Stop(&htim7); // on stop le timer7 car le BP viens d'�tre relach�
-		count=__HAL_TIM_GET_COUNTER(&htim7); // on lit la valeure du timer7, directement en ms
-		__HAL_TIM_SET_COUNTER(&htim7, 0); // on remet le timer7 � 0 pour etre pret pour un nouvel appuie
-		if(count<1000 && count>100)
-		{
-			if (CommandeAmp==0)
-			{
-				CommandeAmp=1;
-			}
-			else
-			{
-				CommandeAmp=0;
-			}
-		}
-	}
-  /* USER CODE END EXTI15_10_IRQn 0 */
-  if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_11) != RESET)
-  {
-    LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_11);
-    /* USER CODE BEGIN LL_EXTI_LINE_11 */
+    /* USER CODE BEGIN EXTI15_10_IRQn 0 */
+    static uint32_t pressStartTime = 0;
 
-    /* USER CODE END LL_EXTI_LINE_11 */
-  }
-  /* USER CODE BEGIN EXTI15_10_IRQn 1 */
+    if (LL_GPIO_IsInputPinSet(GPIOD, GPIO_PIN_11) == 1) // test voir si le BP est press�
+    {
+        pressStartTime = HAL_GetTick();
+    }
+    if (LL_GPIO_IsInputPinSet(GPIOD, GPIO_PIN_11) == 0) // test voir si le BP est relach�
+    {
+        
+        pressDuration = HAL_GetTick() - pressStartTime;
+        if (   (pressDuration < POWER_BUTTON_PRESS_MAX_TIME)
+            && (pressDuration > POWER_BUTTON_PRESS_MIN_TIME))
+        {
+            CommandeAmp = !CommandeAmp;
+        }
+    }
 
-  /* USER CODE END EXTI15_10_IRQn 1 */
+    /* USER CODE END EXTI15_10_IRQn 0 */
+    if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_11) != RESET)
+    {
+        LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_11);
+        /* USER CODE BEGIN LL_EXTI_LINE_11 */
+
+        /* USER CODE END LL_EXTI_LINE_11 */
+    }
+    /* USER CODE BEGIN EXTI15_10_IRQn 1 */
+
+    /* USER CODE END EXTI15_10_IRQn 1 */
 }
 
 /**

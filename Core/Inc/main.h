@@ -27,6 +27,7 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
+#include <stdbool.h>
 #include "stm32f4xx_hal.h"
 
 #include "stm32f4xx_ll_rcc.h"
@@ -58,6 +59,10 @@ typedef enum
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
+#define POWER_BUTTON_PRESS_MIN_TIME  100 // in ms, min time to detect power button action
+#define POWER_BUTTON_PRESS_MAX_TIME 1000 // in ms, max time to detect power button action
+
+extern bool CommandeAmp; // variable globale commande amplis on/off
 
 /* USER CODE END EC */
 
