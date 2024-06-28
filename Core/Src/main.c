@@ -52,7 +52,6 @@ DMA_HandleTypeDef hdma_spi3_tx;
 SPI_HandleTypeDef hspi4;
 
 TIM_HandleTypeDef htim4;
-TIM_HandleTypeDef htim7;
 
 UART_HandleTypeDef huart2;
 
@@ -77,8 +76,8 @@ uint32_t OnOffBuffer[ 64 ];
 osStaticThreadDef_t OnOffControlBlock;
 /* USER CODE BEGIN PV */
 uint32_t errors_mask = 0;
-uint8_t CommandeAmp=0; // variable globale commande amplis on/off
-uint8_t EtatAmp=0; // variable globale etat des amplis on/off
+bool CommandeAmp=false; // variable globale commande amplis on/off
+bool EtatAmp=false; // variable globale etat des amplis on/off
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -86,7 +85,7 @@ void SystemClock_Config(void);
 void PeriphCommonClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
-//static void MX_I2C1_Init(void);
+       void MX_I2C1_Init(void);
 static void MX_I2S1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_USB_OTG_HS_PCD_Init(void);
@@ -94,7 +93,6 @@ static void MX_I2S3_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_SPI4_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_TIM7_Init(void);
 void StartDefaultTask(void const * argument);
 void StartVolume(void const * argument);
 void StartLeds(void const * argument);
@@ -176,7 +174,6 @@ int main(void)
   MX_TIM4_Init();
   MX_SPI4_Init();
   MX_USART2_UART_Init();
-  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
   LL_GPIO_SetOutputPin(ANALOG_ON_GPIO_Port,ANALOG_ON_Pin);
   HAL_Delay(100); // osDelay works also here
@@ -570,44 +567,6 @@ static void MX_TIM4_Init(void)
 }
 
 /**
-  * @brief TIM7 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM7_Init(void)
-{
-
-  /* USER CODE BEGIN TIM7_Init 0 */
-
-  /* USER CODE END TIM7_Init 0 */
-
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM7_Init 1 */
-
-  /* USER CODE END TIM7_Init 1 */
-  htim7.Instance = TIM7;
-  htim7.Init.Prescaler = 47999;
-  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim7.Init.Period = 65535;
-  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_ENABLE;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM7_Init 2 */
-
-  /* USER CODE END TIM7_Init 2 */
-
-}
-
-/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -976,47 +935,47 @@ void StartSource(void const * argument)
 * @retval None
 */
 /* USER CODE END Header_StartOnOff */
-void StartOnOff(void const * argument)
+void StartOnOff(void const *argument)
 {
-  /* USER CODE BEGIN StartOnOff */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(100);
-    if(CommandeAmp==1 && EtatAmp==0)
-		{
-			__HAL_TIM_SET_COUNTER(&htim4, 127); // on reinit l'encoder pour ne pas compter les crans lorsque Amp off
-			//start Amp left& right
-      LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
-      LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
-      LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
-      osDelay(100);
-      LL_GPIO_SetOutputPin(On_L_GPIO_Port, On_L_Pin);
-      LL_GPIO_SetOutputPin(On_R_GPIO_Port, On_R_Pin);
-      osDelay(5000);
-      LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
-      osDelay(100);
-      LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
-      LL_GPIO_SetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
-      //LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
-      EtatAmp=1;
-		}
-    if(CommandeAmp==0 && EtatAmp==1)
-		{
-			LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
-      LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
-      osDelay(100);
-      LL_GPIO_ResetOutputPin(On_L_GPIO_Port, On_L_Pin);
-      LL_GPIO_ResetOutputPin(On_R_GPIO_Port, On_R_Pin);
-      osDelay(100);
-      LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
-      LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
-      LL_GPIO_ResetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
-      LL_GPIO_ResetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
-			EtatAmp=0;
-		}
-  }
-  /* USER CODE END StartOnOff */
+    /* USER CODE BEGIN StartOnOff */
+    /* Infinite loop */
+    for (;;)
+    {
+        osDelay(100);
+        if (CommandeAmp && !EtatAmp)
+        {
+            __HAL_TIM_SET_COUNTER(&htim4, 127); // on reinit l'encoder pour ne pas compter les crans lorsque Amp off
+            // start Amp left& right
+            LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
+            LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+            LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+            osDelay(100);
+            LL_GPIO_SetOutputPin(On_L_GPIO_Port, On_L_Pin);
+            LL_GPIO_SetOutputPin(On_R_GPIO_Port, On_R_Pin);
+            osDelay(5000);
+            LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+            osDelay(100);
+            LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+            LL_GPIO_SetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
+            // LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
+            EtatAmp = true;
+        }
+        if (!CommandeAmp && EtatAmp)
+        {
+            LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+            LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+            osDelay(100);
+            LL_GPIO_ResetOutputPin(On_L_GPIO_Port, On_L_Pin);
+            LL_GPIO_ResetOutputPin(On_R_GPIO_Port, On_R_Pin);
+            osDelay(100);
+            LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+            LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+            LL_GPIO_ResetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
+            LL_GPIO_ResetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
+            EtatAmp = false;
+        }
+    }
+    /* USER CODE END StartOnOff */
 }
 
 /**
