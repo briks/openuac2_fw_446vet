@@ -53,7 +53,7 @@ extern void USBD_AUDIO_UpdateFB(USBD_HandleTypeDef *pdev, uint32_t txCnt);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+extern TIM_HandleTypeDef htim7;
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -64,7 +64,6 @@ extern DMA_HandleTypeDef hdma_spi1_tx;
 extern DMA_HandleTypeDef hdma_spi3_tx;
 extern PCD_HandleTypeDef hpcd_USB_OTG_HS;
 extern TIM_HandleTypeDef htim6;
-extern TIM_HandleTypeDef htim7;
 
 /* USER CODE BEGIN EV */
 extern USBD_HandleTypeDef hUsbDeviceHS;
@@ -225,8 +224,8 @@ void EXTI15_10_IRQHandler(void)
 		HAL_TIM_Base_Stop(&htim7); // on stop le timer7 car le BP viens d'�tre relach�
 		count=__HAL_TIM_GET_COUNTER(&htim7); // on lit la valeure du timer7, directement en ms
 		__HAL_TIM_SET_COUNTER(&htim7, 0); // on remet le timer7 � 0 pour etre pret pour un nouvel appuie
-		//if(count<1000 && count>100)
-		//{
+		if(count<1000 && count>100)
+		{
 			if (CommandeAmp==0)
 			{
 				CommandeAmp=1;
@@ -235,7 +234,7 @@ void EXTI15_10_IRQHandler(void)
 			{
 				CommandeAmp=0;
 			}
-		//}
+		}
 	}
   /* USER CODE END EXTI15_10_IRQn 0 */
   if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_11) != RESET)

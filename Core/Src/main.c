@@ -61,12 +61,8 @@ PCD_HandleTypeDef hpcd_USB_OTG_HS;
 DMA_HandleTypeDef hdma_memtomem_dma2_stream0;
 DMA_HandleTypeDef hdma_memtomem_dma2_stream1;
 osThreadId defaultTaskHandle;
-osThreadId AmpONHandle;
-uint32_t AmpONBuffer[ 64 ];
-osStaticThreadDef_t AmpONControlBlock;
-osThreadId AmpOFFHandle;
-uint32_t AmpOFFBuffer[ 64 ];
-osStaticThreadDef_t AmpOFFControlBlock;
+uint32_t defaultTaskBuffer[ 64 ];
+osStaticThreadDef_t defaultTaskControlBlock;
 osThreadId VolumeHandle;
 uint32_t VolumeBuffer[ 64 ];
 osStaticThreadDef_t VolumeControlBlock;
@@ -76,6 +72,9 @@ osStaticThreadDef_t LedsControlBlock;
 osThreadId SourceHandle;
 uint32_t SourceBuffer[ 64 ];
 osStaticThreadDef_t SourceControlBlock;
+osThreadId OnOffHandle;
+uint32_t OnOffBuffer[ 64 ];
+osStaticThreadDef_t OnOffControlBlock;
 /* USER CODE BEGIN PV */
 uint32_t errors_mask = 0;
 uint8_t CommandeAmp=0; // variable globale commande amplis on/off
@@ -97,11 +96,10 @@ static void MX_SPI4_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM7_Init(void);
 void StartDefaultTask(void const * argument);
-void StartAmpON(void const * argument);
-void StartAmpOFF(void const * argument);
 void StartVolume(void const * argument);
 void StartLeds(void const * argument);
 void StartSource(void const * argument);
+void StartOnOff(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -212,16 +210,8 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 64, defaultTaskBuffer, &defaultTaskControlBlock);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
-
-  /* definition and creation of AmpON */
-  osThreadStaticDef(AmpON, StartAmpON, osPriorityIdle, 0, 64, AmpONBuffer, &AmpONControlBlock);
-  AmpONHandle = osThreadCreate(osThread(AmpON), NULL);
-
-  /* definition and creation of AmpOFF */
-  osThreadStaticDef(AmpOFF, StartAmpOFF, osPriorityIdle, 0, 64, AmpOFFBuffer, &AmpOFFControlBlock);
-  AmpOFFHandle = osThreadCreate(osThread(AmpOFF), NULL);
 
   /* definition and creation of Volume */
   osThreadStaticDef(Volume, StartVolume, osPriorityIdle, 0, 64, VolumeBuffer, &VolumeControlBlock);
@@ -234,6 +224,10 @@ int main(void)
   /* definition and creation of Source */
   osThreadStaticDef(Source, StartSource, osPriorityIdle, 0, 64, SourceBuffer, &SourceControlBlock);
   SourceHandle = osThreadCreate(osThread(Source), NULL);
+
+  /* definition and creation of OnOff */
+  osThreadStaticDef(OnOff, StartOnOff, osPriorityIdle, 0, 64, OnOffBuffer, &OnOffControlBlock);
+  OnOffHandle = osThreadCreate(osThread(OnOff), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -274,7 +268,7 @@ void SystemClock_Config(void)
   {
 
   }
-  //LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLM_DIV_16, 250, LL_RCC_PLLP_DIV_4);
+   //LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLM_DIV_16, 250, LL_RCC_PLLP_DIV_4);
   LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLM_DIV_16, 250, LL_RCC_PLLR_DIV_2);
   MODIFY_REG(RCC->PLLCFGR, RCC_PLLCFGR_PLLP, LL_RCC_PLLP_DIV_4); // replace uneffective line above
   LL_RCC_PLL_Enable();
@@ -593,7 +587,7 @@ static void MX_TIM7_Init(void)
 
   /* USER CODE END TIM7_Init 1 */
   htim7.Instance = TIM7;
-  htim7.Init.Prescaler = 0;
+  htim7.Init.Prescaler = 47999;
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim7.Init.Period = 65535;
   htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -916,76 +910,9 @@ void StartDefaultTask(void const * argument)
   for(;;)
   {
   	AK4490R_ProcessEvents();
-    osDelay(10);
+    osDelay(20);
   }
   /* USER CODE END 5 */
-}
-
-/* USER CODE BEGIN Header_StartAmpON */
-/**
-* @brief Function implementing the AmpON thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartAmpON */
-void StartAmpON(void const * argument)
-{
-  /* USER CODE BEGIN StartAmpON */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(100);
-    if(CommandeAmp==1 && EtatAmp==0)
-		{
-			__HAL_TIM_SET_COUNTER(&htim4, 127); // on reinit l'encoder pour ne pas compter les crans lorsque Amp off
-			//start Amp left& right
-      LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
-      LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
-      HAL_Delay(100);
-      LL_GPIO_SetOutputPin(On_L_GPIO_Port, On_L_Pin);
-      LL_GPIO_SetOutputPin(On_R_GPIO_Port, On_R_Pin);
-      HAL_Delay(5000);
-      LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
-      HAL_Delay(100);
-      LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
-      LL_GPIO_SetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
-      LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
-      EtatAmp=1;
-		}
-  }
-  /* USER CODE END StartAmpON */
-}
-
-/* USER CODE BEGIN Header_StartAmpOFF */
-/**
-* @brief Function implementing the AmpOFF thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartAmpOFF */
-void StartAmpOFF(void const * argument)
-{
-  /* USER CODE BEGIN StartAmpOFF */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(100);
-    if(CommandeAmp==0 && EtatAmp==1)
-		{
-			LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
-      LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
-      HAL_Delay(100);
-      LL_GPIO_ResetOutputPin(On_L_GPIO_Port, On_L_Pin);
-      LL_GPIO_ResetOutputPin(On_R_GPIO_Port, On_R_Pin);
-      HAL_Delay(100);
-      LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
-      LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
-      LL_GPIO_ResetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
-      LL_GPIO_ResetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
-			EtatAmp=0;
-		}
-  }
-  /* USER CODE END StartAmpOFF */
 }
 
 /* USER CODE BEGIN Header_StartVolume */
@@ -1001,7 +928,7 @@ void StartVolume(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(10);
+    osDelay(20);
   }
   /* USER CODE END StartVolume */
 }
@@ -1019,7 +946,7 @@ void StartLeds(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(10);
+    osDelay(20);
   }
   /* USER CODE END StartLeds */
 }
@@ -1037,9 +964,59 @@ void StartSource(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(10);
+    osDelay(50);
   }
   /* USER CODE END StartSource */
+}
+
+/* USER CODE BEGIN Header_StartOnOff */
+/**
+* @brief Function implementing the OnOff thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartOnOff */
+void StartOnOff(void const * argument)
+{
+  /* USER CODE BEGIN StartOnOff */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(100);
+    if(CommandeAmp==1 && EtatAmp==0)
+		{
+			__HAL_TIM_SET_COUNTER(&htim4, 127); // on reinit l'encoder pour ne pas compter les crans lorsque Amp off
+			//start Amp left& right
+      LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
+      LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+      LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+      osDelay(100);
+      LL_GPIO_SetOutputPin(On_L_GPIO_Port, On_L_Pin);
+      LL_GPIO_SetOutputPin(On_R_GPIO_Port, On_R_Pin);
+      osDelay(5000);
+      LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+      osDelay(100);
+      LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+      LL_GPIO_SetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
+      //LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
+      EtatAmp=1;
+		}
+    if(CommandeAmp==0 && EtatAmp==1)
+		{
+			LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+      LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+      osDelay(100);
+      LL_GPIO_ResetOutputPin(On_L_GPIO_Port, On_L_Pin);
+      LL_GPIO_ResetOutputPin(On_R_GPIO_Port, On_R_Pin);
+      osDelay(100);
+      LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+      LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+      LL_GPIO_ResetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
+      LL_GPIO_ResetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
+			EtatAmp=0;
+		}
+  }
+  /* USER CODE END StartOnOff */
 }
 
 /**
