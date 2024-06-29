@@ -869,7 +869,7 @@ void StartDefaultTask(void const * argument)
   for(;;)
   {
   	AK4490R_ProcessEvents();
-    osDelay(20);
+    osDelay(1);
   }
   /* USER CODE END 5 */
 }

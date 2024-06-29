@@ -118,6 +118,7 @@ uint8_t AK4490R_DAC_Stop()
 void AK4490R_ProcessEvents()
 {// Process audio events in the task context, in order of priority
     static HAL_StatusTypeDef I2C_Status = HAL_OK;
+    static uint32_t cnt = 0;
 
     /* Read status
     [3] dop_valid Contains the status of the DoP decoder (DSD over PCM)
@@ -133,17 +134,21 @@ void AK4490R_ProcessEvents()
         b0: The DSD decoder is not being used.
         b1: The DSD decoder is being used as a fallback option if I2S has failed to decode their respective input signals.
     */
-    I2C_Status |= HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG96_ADDR, I2C_MEMADD_SIZE_8BIT, &status_register, 1, TIMEOUT_I2C_DELAY);
-    if (I2C_Status != HAL_OK)
-    {
-        Error_Handler_nonBlocking("I2C read failure", ERROR_I2C);
-        MX_I2C1_Init();
-        I2C_Status = HAL_OK; // reinit to see if better after init
-    }
-    else
-    {
-        Error_cancel_nonBlocking(ERROR_I2C);
-    }
+    cnt++;
+    if (cnt % 10 == 0)
+    { // Do the check only once on 10
+        I2C_Status |= HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG96_ADDR, I2C_MEMADD_SIZE_8BIT, &status_register, 1, TIMEOUT_I2C_DELAY);
+        if (I2C_Status != HAL_OK)
+        {
+            Error_Handler_nonBlocking("I2C read failure", ERROR_I2C);
+            MX_I2C1_Init();
+            I2C_Status = HAL_OK; // reinit to see if better after init
+        }
+        else
+        {
+            Error_cancel_nonBlocking(ERROR_I2C);
+        }
+   }
 
     if (play)
     {
