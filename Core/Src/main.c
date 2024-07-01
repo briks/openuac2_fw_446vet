@@ -206,24 +206,24 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* definition and creation of defaultTask */
+  /* definition and creation of defaultTask  */
   osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 64, defaultTaskBuffer, &defaultTaskControlBlock);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* definition and creation of Volume */
-  osThreadStaticDef(Volume, StartVolume, osPriorityIdle, 0, 64, VolumeBuffer, &VolumeControlBlock);
+  osThreadStaticDef(Volume, StartVolume, osPriorityNormal, 0, 64, VolumeBuffer, &VolumeControlBlock);
   VolumeHandle = osThreadCreate(osThread(Volume), NULL);
 
   /* definition and creation of Leds */
-  osThreadStaticDef(Leds, StartLeds, osPriorityIdle, 0, 64, LedsBuffer, &LedsControlBlock);
+  osThreadStaticDef(Leds, StartLeds, osPriorityNormal, 0, 64, LedsBuffer, &LedsControlBlock);
   LedsHandle = osThreadCreate(osThread(Leds), NULL);
 
   /* definition and creation of Source */
-  osThreadStaticDef(Source, StartSource, osPriorityIdle, 0, 64, SourceBuffer, &SourceControlBlock);
+  osThreadStaticDef(Source, StartSource, osPriorityNormal, 0, 64, SourceBuffer, &SourceControlBlock);
   SourceHandle = osThreadCreate(osThread(Source), NULL);
 
-  /* definition and creation of OnOff */
-  osThreadStaticDef(OnOff, StartOnOff, osPriorityIdle, 0, 64, OnOffBuffer, &OnOffControlBlock);
+  /* definition and creation of OnOff, prio higher than StartDefaultTask source to handle I2C mute request */
+  osThreadStaticDef(OnOff, StartOnOff, osPriorityAboveNormal, 0, 64, OnOffBuffer, &OnOffControlBlock);
   OnOffHandle = osThreadCreate(osThread(OnOff), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */

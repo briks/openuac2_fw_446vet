@@ -93,6 +93,9 @@ uint8_t AK4490R_DAC_SetMute(uint8_t mute) // mute = 1 when mute is requested
 
 HAL_StatusTypeDef AK4490R_DAC_SetMute_Immediate(uint8_t mute) // mute = 1 when mute is requested
 {
+    HAL_StatusTypeDef I2C_Status = HAL_OK;
+
+    // reg7 filter bw and system mute: set the mute b10000001 or normal b10000000
     if (mute)
     { // Mute
         registre = 0x81;
@@ -101,8 +104,17 @@ HAL_StatusTypeDef AK4490R_DAC_SetMute_Immediate(uint8_t mute) // mute = 1 when m
     { // unmute 
         registre = 0x80;
     }
-    // reg7 filter bw and system mute: set the mute b10000001 or normal b10000000
-    return HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG7_ADDR, I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
+
+    do{
+        I2C_Status = HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG7_ADDR,
+                                       I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
+        if (I2C_Status == HAL_BUSY)
+        {
+            osDelay(1); // leave time to other task to free I2C
+        }
+    } while (I2C_Status == HAL_BUSY);
+    
+    return I2C_Status;
 }
 
 // force mute in case of amp power off, but keep track of requested mute state
