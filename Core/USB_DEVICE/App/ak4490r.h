@@ -125,6 +125,7 @@ extern uint8_t configured_volume;
 uint8_t AK4490R_DAC_Init();
 uint8_t AK4490R_DAC_SetVolume(uint8_t vol);
 uint8_t AK4490R_DAC_SetMute(uint8_t mute);
+void AK4490R_DAC_SetMute_Force(void);
 uint8_t AK4490R_DAC_SetFormat(uint8_t format);
 uint8_t AK4490R_DAC_Play();
 uint8_t AK4490R_DAC_Stop();

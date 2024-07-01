@@ -12,8 +12,8 @@ extern I2C_HandleTypeDef AK4490R_I2C_HANDLE;
 static uint8_t play;
 uint8_t requested_volume = AUDIO_CUR_VOL; // Volume set after init, windows range [0..100]
 uint8_t configured_volume = 49;   // Set a differente value, to force a set @requested_attenuation after init.
-uint8_t requested_mute = 0;
-uint8_t configured_mute = 1; // Force a set @requested_mute after init.
+bool requested_mute = false; // win starts unmuted
+bool configured_mute = false;
 AUDIO_FormatTypeDef requested_format = AUDIO_FORMAT_PCM;
 AUDIO_FormatTypeDef configured_format = AUDIO_FORMAT_DSD; // Force a set @requested_format after init.
 uint8_t regread;
@@ -73,6 +73,7 @@ uint8_t AK4490R_DAC_Init()
 	//reg27 setasrc enable, volume ch2 same as ch1, and allow volume update
 	registre = 0x8C;
     HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG27_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&registre, sizeof(registre), TIMEOUT_I2C_DELAY);
+    AK4490R_DAC_SetMute_Force(); // startup muted, waiting for amp power ON, even if windows starts unmuted
     return 0;
 }
 
@@ -85,11 +86,32 @@ uint8_t AK4490R_DAC_SetVolume(uint8_t vol) // receive a value between 0 and 100.
 
 uint8_t AK4490R_DAC_SetMute(uint8_t mute) // mute = 1 when mute is requested
 {
-    if (mute)
-        requested_mute = mute;
-    else
-        requested_mute = 0;
+    requested_mute = (mute == 1); // true or false
+
     return 0;
+}
+
+HAL_StatusTypeDef AK4490R_DAC_SetMute_Immediate(uint8_t mute) // mute = 1 when mute is requested
+{
+    if (mute)
+    { // Mute
+        registre = 0x81;
+    }
+    else
+    { // unmute 
+        registre = 0x80;
+    }
+    // reg7 filter bw and system mute: set the mute b10000001 or normal b10000000
+    return HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG7_ADDR, I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
+}
+
+// force mute in case of amp power off, but keep track of requested mute state
+void AK4490R_DAC_SetMute_Force(void)
+{
+    // store mute state to restore it in case of power on
+    requested_mute = configured_mute || requested_mute;
+    AK4490R_DAC_SetMute_Immediate(true);
+    configured_mute = true;
 }
 
 uint8_t AK4490R_DAC_SetFormat(uint8_t format)
@@ -160,19 +182,18 @@ void AK4490R_ProcessEvents()
 
     if (requested_mute != configured_mute)
     {// adjust mute state
-        if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
+        if (   (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
+            && (EtatAmp) )
         {
             configured_mute = requested_mute;
             if (configured_mute)
-            {
-                registre = 0x81;
+            {// Mute
+                I2C_Status |= AK4490R_DAC_SetMute_Immediate(true);
             }
             else
-            {
-                registre = 0x80;
+            {// Unmute
+                I2C_Status |= AK4490R_DAC_SetMute_Immediate(false);
             }
-            // reg7 filter bw and system mute: set the mute b10000001 or normal b10000000
-            I2C_Status |= HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG7_ADDR, I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
         }
     }
 

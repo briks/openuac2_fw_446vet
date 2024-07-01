@@ -63,7 +63,7 @@ typedef enum
 #define POWER_BUTTON_PRESS_MAX_TIME 1000 // in ms, max time to detect power button action
 
 extern bool CommandeAmp; // variable globale commande amplis on/off
-
+extern bool EtatAmp;     // variable globale etat des amplis on/off
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/

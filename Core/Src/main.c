@@ -962,6 +962,9 @@ void StartOnOff(void const *argument)
         }
         if (!CommandeAmp && EtatAmp)
         {
+            EtatAmp = false;
+            AK4490R_DAC_SetMute_Force();
+
             LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
             LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
             osDelay(100);
@@ -972,7 +975,6 @@ void StartOnOff(void const *argument)
             LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
             LL_GPIO_ResetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
             LL_GPIO_ResetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
-            EtatAmp = false;
         }
     }
     /* USER CODE END StartOnOff */
