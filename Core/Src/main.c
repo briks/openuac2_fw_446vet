@@ -78,6 +78,9 @@ osStaticThreadDef_t OnOffControlBlock;
 uint32_t errors_mask = 0;
 bool CommandeAmp=false; // variable globale commande amplis on/off
 bool EtatAmp=false; // variable globale etat des amplis on/off
+audio_source_t requested_source = source_line;
+audio_source_t current_source = source_line;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -906,6 +909,34 @@ void StartLeds(void const * argument)
   for(;;)
   {
     osDelay(20);
+    switch (requested_source)
+    {
+    case source_line:
+      LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
+      LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
+      LL_GPIO_ResetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
+      LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+      break;
+    case source_bt:
+      LL_GPIO_ResetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+      LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
+      LL_GPIO_ResetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
+      LL_GPIO_SetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
+      break;
+    case source_SPDIF:
+      LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
+      LL_GPIO_ResetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+      LL_GPIO_ResetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
+      LL_GPIO_SetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
+      break;
+    case source_USB:
+      LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
+      LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
+      LL_GPIO_ResetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+      LL_GPIO_SetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
+      break;  
+    }
+
   }
   /* USER CODE END StartLeds */
 }

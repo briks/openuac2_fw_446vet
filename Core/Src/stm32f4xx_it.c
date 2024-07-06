@@ -227,7 +227,22 @@ void EXTI15_10_IRQHandler(void)
         if (   (pressDuration < POWER_BUTTON_PRESS_MAX_TIME)
             && (pressDuration > POWER_BUTTON_PRESS_MIN_TIME))
         {
-            CommandeAmp = !CommandeAmp;
+            if(!EtatAmp)
+            {
+              CommandeAmp = !CommandeAmp;
+            }
+            else
+            {
+              requested_source++;
+              if (requested_source >= sourceNbr)
+                {
+                  requested_source = source_line;
+                }
+            }
+        }
+        if (pressDuration > POWER_BUTTON_PRESS_MAX_TIME)
+        {
+          CommandeAmp = !CommandeAmp;
         }
     }
 

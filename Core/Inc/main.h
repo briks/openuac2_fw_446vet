@@ -55,6 +55,15 @@ typedef enum
     ERROR_MAX_NBR
 } errorNbr;
 
+typedef enum 
+{
+  source_line,
+  source_bt,
+  source_SPDIF,
+  source_USB,
+  sourceNbr
+} audio_source_t;
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -64,6 +73,8 @@ typedef enum
 
 extern bool CommandeAmp; // variable globale commande amplis on/off
 extern bool EtatAmp;     // variable globale etat des amplis on/off
+extern audio_source_t requested_source;
+extern audio_source_t current_source;
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
