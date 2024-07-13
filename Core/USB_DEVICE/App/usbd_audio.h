@@ -203,10 +203,10 @@ typedef struct
 
 typedef struct
 {
-    uint8_t (*Init)();
-    uint8_t (*DeInit)();
-    uint8_t (*AudioCmd)(uint8_t* pbuf, uint32_t size, uint8_t cmd);
-    uint8_t (*GetState)();
+    uint8_t (*AUDIO_Init)();
+    uint8_t (*AUDIO_DeInit)();
+    uint8_t (*AUDIO_Cmd)(uint8_t *pbuf, uint32_t size, uint8_t cmd);
+    uint8_t (*AUDIO_GetState)();
 } USBD_AUDIO_ItfTypeDef;
 
 

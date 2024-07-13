@@ -27,6 +27,7 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
+#include <stdbool.h>
 #include "stm32f4xx_hal.h"
 
 #include "stm32f4xx_ll_rcc.h"
@@ -58,7 +59,11 @@ typedef enum
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
+#define POWER_BUTTON_PRESS_MIN_TIME  100 // in ms, min time to detect power button action
+#define POWER_BUTTON_PRESS_MAX_TIME 1000 // in ms, max time to detect power button action
 
+extern bool CommandeAmp; // variable globale commande amplis on/off
+extern bool EtatAmp;     // variable globale etat des amplis on/off
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -78,8 +83,26 @@ void MX_I2C1_Init(void);
 /* Private defines -----------------------------------------------------------*/
 #define ANALOG_ON_Pin LL_GPIO_PIN_2
 #define ANALOG_ON_GPIO_Port GPIOE
+#define Light_fire_R_Pin LL_GPIO_PIN_3
+#define Light_fire_R_GPIO_Port GPIOE
+#define Light_fire_L_Pin LL_GPIO_PIN_4
+#define Light_fire_L_GPIO_Port GPIOE
+#define Led_G_Pin LL_GPIO_PIN_5
+#define Led_G_GPIO_Port GPIOE
+#define Led_R_Pin LL_GPIO_PIN_6
+#define Led_R_GPIO_Port GPIOE
 #define RELAY_ON_Pin LL_GPIO_PIN_13
 #define RELAY_ON_GPIO_Port GPIOC
+#define On_L_Pin LL_GPIO_PIN_14
+#define On_L_GPIO_Port GPIOC
+#define On_R_Pin LL_GPIO_PIN_15
+#define On_R_GPIO_Port GPIOC
+#define SEL_SPDIF_Pin LL_GPIO_PIN_4
+#define SEL_SPDIF_GPIO_Port GPIOC
+#define PGA_M_Pin LL_GPIO_PIN_10
+#define PGA_M_GPIO_Port GPIOE
+#define SPI4_CS_Pin LL_GPIO_PIN_11
+#define SPI4_CS_GPIO_Port GPIOE
 #define PDN_Pin LL_GPIO_PIN_14
 #define PDN_GPIO_Port GPIOB
 #define LED1_SPDIF_Pin LL_GPIO_PIN_15
@@ -105,6 +128,10 @@ void MX_I2C1_Init(void);
 #define DSDOE_GPIO_Port GPIOC
 #define TIM3_ETR_AUDIO_SYNC_Pin LL_GPIO_PIN_2
 #define TIM3_ETR_AUDIO_SYNC_GPIO_Port GPIOD
+#define BT_RST_Pin LL_GPIO_PIN_7
+#define BT_RST_GPIO_Port GPIOD
+#define BT_PWR_Pin LL_GPIO_PIN_4
+#define BT_PWR_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
