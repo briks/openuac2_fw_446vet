@@ -59,7 +59,7 @@ extern "C" {
 #define AUDIO_VOL_RES                   1//(  1*256)
 
 #define FEEDBACK_HS_BINTERVAL           4U
-#define STREAMING_HS_BINTERVAL          1U
+#define STREAMING_HS_BINTERVAL          1U // Interval for polling endpoint for data transfers
 
 #define AUDIO_WTOTALLENGTH              60U
 
@@ -115,8 +115,8 @@ extern "C" {
 #define FORMAT_TYPE                     0x02
 
 // Interface definitions
-#define AC_INTERFACE_NUM                0x00
-#define AS_INTERFACE_NUM                0x01
+#define AC_INTERFACE_NUM                0x00 // Audio control interface number
+#define AS_INTERFACE_NUM                0x01 // Audio streaming interface number
 
 // Clock source definitions
 #define CLOCK_SOURCE_ID                 0x04
@@ -125,14 +125,14 @@ extern "C" {
 #define INPUT_TERMINAL_ID               0x01
 #define INPUT_TERMINAL_TYPE             0x0101 // USB Streaming; See Termt20 section 2.1
 #define OUTPUT_TERMINAL_ID              0x03
-#define OUTPUT_TERMINAL_TYPE            0x0301 // Speaker; See Termt20 section 2.3
+#define OUTPUT_TERMINAL_TYPE            0x0305 // 0x0301 Speaker; See Termt20 section 2.3, could be 0x0305 for room speaker
 #define FEATURE_UNIT_ID                 0x02
 
 // Endpoint definitions
 #define STREAMING_EP_ADDR               0x01
-#define STREAMING_EP_ATTRIB             0x05
+#define STREAMING_EP_ATTRIB             0x05 // isochronous, asynchronous sink, so Provides explicit feedback
 #define FEEDBACK_EP_ADDR                (STREAMING_EP_ADDR | 0x80)
-#define FEEDBACK_EP_ATTRIB              0x11
+#define FEEDBACK_EP_ATTRIB              0x11 // isochronous, feedback type
 #define STREAMING_EP_NUM                (STREAMING_EP_ADDR & 0xF)
 #define FEEDBACK_EP_NUM                 (FEEDBACK_EP_ADDR & 0xF)
 
@@ -142,15 +142,15 @@ extern "C" {
     *(_type*)_ptr = (_value);         \
     _ptr += sizeof(_type)
 
-    /* Audio Commands enumeration */
-    typedef enum {
-        AUDIO_CMD_PLAY,
-        AUDIO_CMD_FORMAT,
-        AUDIO_CMD_STOP,
-        AUDIO_CMD_FREQ,
-        AUDIO_CMD_MUTE,
-        AUDIO_CMD_VOLUME,
-    } AUDIO_CommandTypeDef;
+        /* Audio Commands enumeration */
+        typedef enum {
+            AUDIO_CMD_PLAY,
+            AUDIO_CMD_FORMAT,
+            AUDIO_CMD_STOP,
+            AUDIO_CMD_FREQ,
+            AUDIO_CMD_MUTE,
+            AUDIO_CMD_VOLUME,
+        } AUDIO_CommandTypeDef;
 
 typedef enum
 {
