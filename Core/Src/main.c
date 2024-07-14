@@ -79,7 +79,7 @@ uint32_t errors_mask = 0;
 bool CommandeAmp=false; // variable globale commande amplis on/off
 bool EtatAmp=false; // variable globale etat des amplis on/off
 audio_source_t requested_source = source_line;
-audio_source_t current_source = source_line;
+audio_source_t current_source = source_USB;
 
 /* USER CODE END PV */
 
@@ -172,7 +172,7 @@ int main(void)
   MX_I2C1_Init();
   MX_I2S1_Init();
   MX_TIM3_Init();
-  MX_USB_OTG_HS_PCD_Init();
+  //MX_USB_OTG_HS_PCD_Init();
   MX_I2S3_Init();
   MX_TIM4_Init();
   MX_SPI4_Init();
@@ -180,13 +180,13 @@ int main(void)
   /* USER CODE BEGIN 2 */
   LL_GPIO_SetOutputPin(ANALOG_ON_GPIO_Port,ANALOG_ON_Pin);
   HAL_Delay(100); // osDelay works also here
-  LL_GPIO_ResetOutputPin(PDN_GPIO_Port,PDN_Pin);
+  /*LL_GPIO_ResetOutputPin(PDN_GPIO_Port,PDN_Pin);
   LL_GPIO_ResetOutputPin(MUX_EN_GPIO_Port,MUX_EN_Pin);
   LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port,MUX_SEL_Pin);
   AK4490R_ProcessEvents(); // Call it one time to init values, before starting usb.
   MX_USB_DEVICE_Init();
   LL_TIM_EnableIT_UPDATE(TIM3);
-  LL_TIM_EnableCounter(TIM3);
+  LL_TIM_EnableCounter(TIM3);*/
   
 
 
@@ -955,6 +955,48 @@ void StartSource(void const * argument)
   for(;;)
   {
     osDelay(50);
+    switch (requested_source)
+    {
+    case source_line:
+      LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
+      LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
+      LL_GPIO_ResetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
+      LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+      break;
+    case source_bt:
+      LL_GPIO_ResetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+      LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
+      LL_GPIO_ResetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
+      LL_GPIO_SetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
+      break;
+    case source_SPDIF:
+    if(current_source != source_SPDIF)
+    {
+      if(current_source == source_USB)
+      {
+        //stop USB 
+      }
+      AK4490R_DAC_SetMute_Force();
+      LL_GPIO_ResetOutputPin(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin);
+      ES9038_DAC_Init_SPDIF();
+      current_source = source_SPDIF;
+    }
+      break;
+    case source_USB:
+    if(current_source != source_USB)
+    {
+      MX_USB_OTG_HS_PCD_Init();
+      LL_GPIO_ResetOutputPin(PDN_GPIO_Port,PDN_Pin);
+      LL_GPIO_ResetOutputPin(MUX_EN_GPIO_Port,MUX_EN_Pin);
+      LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port,MUX_SEL_Pin);
+      AK4490R_ProcessEvents(); // Call it one time to init values, before starting usb.
+      MX_USB_DEVICE_Init();
+      LL_TIM_EnableIT_UPDATE(TIM3);
+      LL_TIM_EnableCounter(TIM3);
+      current_source = source_USB;
+    }
+      break;  
+    }
   }
   /* USER CODE END StartSource */
 }

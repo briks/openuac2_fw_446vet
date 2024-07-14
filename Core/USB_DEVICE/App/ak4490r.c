@@ -77,6 +77,51 @@ uint8_t AK4490R_DAC_Init()
     return 0;
 }
 
+uint8_t ES9038_DAC_Init_SPDIF()
+{
+	LL_GPIO_ResetOutputPin(PDN_GPIO_Port, PDN_Pin);
+    HAL_Delay(10); // called from interrupt, osDelay not allowed
+    LL_GPIO_SetOutputPin(PDN_GPIO_Port, PDN_Pin);
+    HAL_Delay(100); // Delay in interrupt, not so good
+    //reg1 input selection: set 32bits data default and i2s 1100 set to i2s input (no auto detect) 0000
+	//reg7 filter bw and system mute: set the mute b10000001 or normal b10000000
+	//reg8: set gpio1 to spdif input & gpio2 to whatever analog input for shutdown d13d8
+	//reg11: set wich input use when decoding SPDIF data GPIO1: d3d0
+	//reg27 general configuration: set ch1 volume on to share volume between ch1 and ch2 b11011100
+
+	//shut down the oscillator b11110000
+	registre = 0xf0;
+	//HAL_I2C_Mem_Write_IT(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x00, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, sizeof(registre));
+
+	//reg14 normal operation b10001010 
+	registre = 0x8a;
+    HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&regread, sizeof(regread), TIMEOUT_I2C_DELAY);
+    HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&registre, sizeof(registre), TIMEOUT_I2C_DELAY);
+    HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&regread, sizeof(regread), TIMEOUT_I2C_DELAY);
+
+    //reg1 input selection: set 32bits data default and i2s 0100 set to i2s SPDIF (no auto detect)
+	registre = 0xc1;
+	HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x01, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, sizeof(registre), HAL_MAX_DELAY);
+
+	//reg8: set gpio1 to spdif input & gpio2 to whatever analog input for shutdown d13d8
+	registre = 0xd8;
+	HAL_I2C_Mem_Write_IT(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x08, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, sizeof(registre));
+
+	//reg11: set wich input use when decoding SPDIF data GPIO1: d3d0
+	registre = 0x30;
+	HAL_I2C_Mem_Write_IT(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x0b, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, sizeof(registre));
+
+	//reg27 no +18db gain (not good idea) made volumne ch2 same a ch1, and allow volume update
+	//registre = 0xdc;
+	//reg27 setasrc enable, volume ch2 same as ch1, and allow volume update
+	registre = 0x8C;
+    HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG27_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&registre, sizeof(registre), TIMEOUT_I2C_DELAY);
+    //AK4490R_DAC_SetMute_Force(); // startup muted, waiting for amp power ON, even if windows starts unmuted
+    HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
+                                            0x0, 1, TIMEOUT_I2C_DELAY);
+    return 0;
+}
+
 
 uint8_t AK4490R_DAC_SetVolume(uint8_t vol) // receive a value between 0 and 100. Compare to windows : 0->0, 1->0, then n-1 up to 99, and 100->100
 {
