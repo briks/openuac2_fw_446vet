@@ -160,7 +160,7 @@ int main(void)
   /* Configure the system clock */
   SystemClock_Config();
 
-/* Configure the peripherals common clocks */
+  /* Configure the peripherals common clocks */
   PeriphCommonClock_Config();
 
   /* USER CODE BEGIN SysInit */
@@ -1008,9 +1008,9 @@ void StartSource(void const * argument)
 * @retval None
 */
 /* USER CODE END Header_StartOnOff */
-void StartOnOff(void const *argument)
+void StartOnOff(void const * argument)
 {
-    /* USER CODE BEGIN StartOnOff */
+  /* USER CODE BEGIN StartOnOff */
     /* Infinite loop */
     for (;;)
     {
@@ -1050,7 +1050,7 @@ void StartOnOff(void const *argument)
             LL_GPIO_ResetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
         }
     }
-    /* USER CODE END StartOnOff */
+  /* USER CODE END StartOnOff */
 }
 
 /**
