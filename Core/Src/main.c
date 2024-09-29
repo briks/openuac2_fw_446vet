@@ -951,6 +951,9 @@ void StartLeds(void const * argument)
 void StartSource(void const * argument)
 {
   /* USER CODE BEGIN StartSource */
+  uint8_t sound_on[2];
+  sound_on[0]=0xc0;
+  sound_on[1]=0xc0;
   /* Infinite loop */
   for(;;)
   {
@@ -958,18 +961,33 @@ void StartSource(void const * argument)
     switch (requested_source)
     {
     case source_line:
+    if(current_source != source_line)
+    {
       LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
       LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
       LL_GPIO_ResetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
       LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+      LL_GPIO_ResetOutputPin(PGA_M_GPIO_Port, PGA_M_Pin);
+      LL_GPIO_SetOutputPin(RELAY_ON_GPIO_Port, RELAY_ON_Pin);
+      osDelay(20);
+      LL_GPIO_SetOutputPin(PGA_M_GPIO_Port, PGA_M_Pin);
+      LL_GPIO_ResetOutputPin(SPI4_CS_GPIO_Port, SPI4_CS_Pin);
+      HAL_SPI_Transmit(&hspi4, (uint8_t *)sound_on, sizeof(sound_on), 10);
+      LL_GPIO_SetOutputPin(SPI4_CS_GPIO_Port, SPI4_CS_Pin);
+      current_source = source_line;
+    }
       break;
     case source_bt:
+      LL_GPIO_ResetOutputPin(RELAY_ON_GPIO_Port, RELAY_ON_Pin);
+      osDelay(20);
       LL_GPIO_ResetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
       LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
       LL_GPIO_ResetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
       LL_GPIO_SetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
       break;
     case source_SPDIF:
+    LL_GPIO_ResetOutputPin(RELAY_ON_GPIO_Port, RELAY_ON_Pin);
+    osDelay(20);
     if(current_source != source_SPDIF)
     {
       if(current_source == source_USB)
@@ -983,6 +1001,8 @@ void StartSource(void const * argument)
     }
       break;
     case source_USB:
+    LL_GPIO_ResetOutputPin(RELAY_ON_GPIO_Port, RELAY_ON_Pin);
+    osDelay(20);
     if(current_source != source_USB)
     {
       MX_USB_OTG_HS_PCD_Init();
