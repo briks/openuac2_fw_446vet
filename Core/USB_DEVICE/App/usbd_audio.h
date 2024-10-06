@@ -59,7 +59,7 @@ extern "C" {
 #define AUDIO_VOL_RES                   1//(  1*256)
 
 #define FEEDBACK_HS_BINTERVAL           4U  // for 8µframe or 1 ms
-#define STREAMING_HS_BINTERVAL          1U  // for 1µframe of 1/8 ms
+#define STREAMING_HS_BINTERVAL          1U  // for 1µframe of 1/8 ms, Interval for polling endpoint for data transfers
 #define INTERRUPT_HS_BINTERVAL          5U  // for 16µframe or 2 ms
 
 #define AUDIO_WTOTALLENGTH              60U
@@ -117,8 +117,8 @@ extern "C" {
 #define FORMAT_TYPE                     0x02
 
 // Interface definitions
-#define AC_INTERFACE_NUM                0x00
-#define AS_INTERFACE_NUM                0x01
+#define AC_INTERFACE_NUM                0x00 // Audio control interface number
+#define AS_INTERFACE_NUM                0x01 // Audio streaming interface number
 
 // Clock source definitions
 #define CLOCK_SOURCE_ID                 0x04
@@ -127,19 +127,19 @@ extern "C" {
 #define INPUT_TERMINAL_ID               0x01
 #define INPUT_TERMINAL_TYPE             0x0101 // USB Streaming; See Termt20 section 2.1
 #define OUTPUT_TERMINAL_ID              0x03
-#define OUTPUT_TERMINAL_TYPE            0x0301 // Speaker; See Termt20 section 2.3
+#define OUTPUT_TERMINAL_TYPE            0x0305 // 0x0301 Speaker; See Termt20 section 2.3, could be 0x0305 for room speaker
 #define FEATURE_UNIT_ID                 0x02
 
 // Endpoint definitions
 #define STREAMING_EP_ADDR               0x01
-#define STREAMING_EP_ATTRIB             0x05
+#define STREAMING_EP_ATTRIB             0x05 // isochronous, asynchronous sink, so Provides explicit feedback
 #define FEEDBACK_EP_ADDR                (STREAMING_EP_ADDR | 0x80)
-#define FEEDBACK_EP_ATTRIB              0x11
+#define FEEDBACK_EP_ATTRIB              0x11 // isochronous, feedback type
 #define INTERRUPT_EP_ADDR               (0x02 | 0x80)
-#define INTERRUPT_EP_ATTRIB             0x03 // transfer type interrupt 
+#define INTERRUPT_EP_ATTRIB             0x03 // transfer type interrupt b11
 #define STREAMING_EP_NUM                (STREAMING_EP_ADDR & 0xF)
 #define FEEDBACK_EP_NUM                 (FEEDBACK_EP_ADDR & 0xF)
-#define INTERRUPT_EP_NUM                 (INTERRUPT_EP_ADDR & 0xF)
+#define INTERRUPT_EP_NUM                (INTERRUPT_EP_ADDR & 0xF)
 
 #define EP_GENERAL                      0x01
 
@@ -178,6 +178,18 @@ typedef enum
  * @{
  */
 
+typedef struct usb_InterruptControl
+{
+    uint8_t binfo;      // 0 (Interface request)
+    uint8_t bAttribute; // 0x1 (CUR request)
+    //uint16_t wValue;
+    uint8_t wValueLowByte;  // CN Channel Number in low byte (0 master)
+    uint8_t wValueHighByte; // CS Channel Selector 0X1 FU_MUTE_CONTROL OR 0x2 FU_VOLUME_CONTROL
+    //uint16_t wIndex;    
+    uint8_t wIndexLowByte;  // interface 0
+    uint8_t wIndexHighByte; // 0x2 FEATURE UNIT ID
+} USBD_InterruptControlTypedef;
+
 typedef struct
 {
     uint8_t data[USB_MAX_EP0_SIZE];
@@ -199,6 +211,8 @@ typedef struct
     uint8_t bit_depth;
     uint8_t stream_type;
     uint8_t state;
+    USBD_InterruptControlTypedef *interrupt_volume_ctrl;
+    USBD_InterruptControlTypedef *interrupt_mute_ctrl;
 } USBD_AUDIO_HandleTypeDef;
 
 typedef struct
@@ -237,8 +251,12 @@ extern USBD_ClassTypeDef USBD_AUDIO;
 /** @defgroup USB_CORE_Exported_Functions
  * @{
  */
+
+void USBD_AUDIO_signal_mute_change(void);
+void USBD_AUDIO_signal_volume_change(void);
+
 uint8_t USBD_AUDIO_RegisterInterface(USBD_HandleTypeDef *pdev,
-                                        USBD_AUDIO_ItfTypeDef *fops);
+                                     USBD_AUDIO_ItfTypeDef *fops);
 
 void USBD_AUDIO_Sync(USBD_HandleTypeDef *pdev);
 

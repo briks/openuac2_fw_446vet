@@ -2,6 +2,7 @@
 #define _AK4490R_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define AK4490R_I2C_HANDLE       hi2c1
 
@@ -121,6 +122,7 @@
 } AK4490R_RegisterTypeDef;
 
 extern uint8_t configured_volume;
+extern bool configured_mute;
 
 uint8_t AK4490R_DAC_Init();
 uint8_t AK4490R_DAC_SetVolume(uint8_t vol);

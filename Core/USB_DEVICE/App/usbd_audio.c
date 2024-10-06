@@ -5,6 +5,7 @@
 #include "usbd_audio_if.h"
 #include "audio_desc.h"
 #include "ak4490r.h"
+#include "usb_device.h"
 
 #ifdef USE_USBD_COMPOSITE
 #error "Composite device is unsupported."
@@ -29,6 +30,24 @@ static void *USBD_AUDIO_GetAudioHeaderDesc(uint8_t *pConfDesc);
 
 static USBD_AUDIO_HandleTypeDef s_Haudio;
 
+static USBD_InterruptControlTypedef s_interrupt_volume_ctrl = {
+    .binfo = 0,                          // 0 (Interface request)
+    .bAttribute = 1,                     // 0x1 (CUR request)
+    .wValueLowByte = 0,                  // CN Channel Number in low byte (0 master)
+    .wValueHighByte = FU_VOLUME_CONTROL, // CS Channel Selector 0X1 FU_MUTE_CONTROL OR 0x2 FU_VOLUME_CONTROL
+    .wIndexLowByte = AC_INTERFACE_NUM,   // interface 0
+    .wIndexHighByte = FEATURE_UNIT_ID,   // 0x2 FEATURE UNIT ID
+};
+
+static USBD_InterruptControlTypedef s_interrupt_mute_ctrl = {
+    .binfo = 0,                        // 0 (Interface request)
+    .bAttribute = 1,                   // 0x1 (CUR request)
+    .wValueLowByte = 0,                // CN Channel Number in low byte (0 master)
+    .wValueHighByte = FU_MUTE_CONTROL, // CS Channel Selector 0X1 FU_MUTE_CONTROL OR 0x2 FU_VOLUME_CONTROL
+    .wIndexLowByte = AC_INTERFACE_NUM, // interface 0
+    .wIndexHighByte = FEATURE_UNIT_ID, // 0x2 FEATURE UNIT ID
+};
+
 USBD_ClassTypeDef USBD_AUDIO =
 {
   USBD_AUDIO_Init,
@@ -46,6 +65,26 @@ USBD_ClassTypeDef USBD_AUDIO =
   USBD_AUDIO_GetCfgDesc,
   USBD_AUDIO_GetDeviceQualifierDesc,
 };
+
+void USBD_AUDIO_signal_mute_change(void)
+{
+    if (USBD_LL_Transmit(&hUsbDeviceHS, INTERRUPT_EP_ADDR, (uint8_t *)s_Haudio.interrupt_mute_ctrl, INTERRUPT_PACKET_SIZE) != USBD_OK)
+    {
+        while (1)
+        {
+        };
+    }
+}
+
+void USBD_AUDIO_signal_volume_change(void)
+{
+    if (USBD_LL_Transmit(&hUsbDeviceHS, INTERRUPT_EP_ADDR, (uint8_t *)s_Haudio.interrupt_volume_ctrl, INTERRUPT_PACKET_SIZE) != USBD_OK)
+    {
+        while (1)
+        {
+        };
+    }
+}
 
 static uint8_t USBD_AUDIO_GetStreamType(USBD_HandleTypeDef* pdev)
 {
@@ -99,6 +138,8 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   UNUSED(cfgidx);
 
   USBD_AUDIO_HandleTypeDef* haudio = &s_Haudio;
+  haudio->interrupt_volume_ctrl = &s_interrupt_volume_ctrl;
+  haudio->interrupt_mute_ctrl = &s_interrupt_mute_ctrl;
 
   pdev->pClassDataCmsit[pdev->classId] = haudio;
   pdev->pClassData = pdev->pClassDataCmsit[pdev->classId];
@@ -107,6 +148,7 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   {
     pdev->ep_out[STREAMING_EP_NUM].bInterval = STREAMING_HS_BINTERVAL;
     pdev->ep_in[FEEDBACK_EP_NUM].bInterval = 	FEEDBACK_HS_BINTERVAL;
+    pdev->ep_in[INTERRUPT_EP_NUM].bInterval = 	INTERRUPT_HS_BINTERVAL;
   }
   else
   {
@@ -137,9 +179,11 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 
   /* Prepare Out endpoint to receive 1st packet */
   USBD_LL_PrepareReceive(pdev, STREAMING_EP_ADDR, (uint8_t*)haudio->pkt_buf, USB_HS_MAX_PACKET_SIZE);
-  USBD_LL_Transmit(pdev, FEEDBACK_EP_ADDR, (uint8_t*)&haudio->feedback_value, FEEDBACK_PACKET_SIZE);
+  USBD_LL_Transmit(pdev, FEEDBACK_EP_ADDR, (uint8_t *)&haudio->feedback_value, FEEDBACK_PACKET_SIZE);
+  //USBD_AUDIO_signal_mute_change();
+  //USBD_AUDIO_signal_volume_change();
 
-  return USBD_OK;
+      return USBD_OK;
 }
 
 static uint8_t USBD_AUDIO_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
@@ -151,8 +195,10 @@ static uint8_t USBD_AUDIO_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   USBD_LL_CloseEP(pdev, INTERRUPT_EP_ADDR);
   pdev->ep_out[STREAMING_EP_NUM].is_used = 0U;
   pdev->ep_out[STREAMING_EP_NUM].bInterval = 0U;
-  pdev->ep_out[FEEDBACK_EP_NUM].is_used = 0U;
-	pdev->ep_out[FEEDBACK_EP_NUM].bInterval = 0U;
+  pdev->ep_in[FEEDBACK_EP_NUM].is_used = 0U;
+  pdev->ep_in[FEEDBACK_EP_NUM].bInterval = 0U;
+  pdev->ep_in[INTERRUPT_EP_NUM].is_used = 0U;
+  pdev->ep_in[INTERRUPT_EP_NUM].bInterval = 0U;
 
   if (pdev->pClassDataCmsit[pdev->classId] != NULL)
   {
@@ -295,14 +341,34 @@ static uint8_t *USBD_AUDIO_GetCfgDesc(uint16_t *length)
 }
 #endif /* USE_USBD_COMPOSITE  */
 
+uint8_t rx_epum = 0xFF;
+uint8_t epnum2_cpt = 0;
+
 static uint8_t USBD_AUDIO_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
 	USBD_AUDIO_HandleTypeDef* haudio = pdev->pClassDataCmsit[pdev->classId];
 
-	if (epnum == FEEDBACK_EP_NUM)
-	{
-		USBD_LL_Transmit(pdev, FEEDBACK_EP_ADDR, (uint8_t*)&haudio->feedback_value, FEEDBACK_PACKET_SIZE);
-	}
+    if (epnum == FEEDBACK_EP_NUM)
+    {
+        USBD_LL_Transmit(pdev, FEEDBACK_EP_ADDR, (uint8_t *)&haudio->feedback_value, FEEDBACK_PACKET_SIZE);
+    }
+    else
+    {
+        if (epnum == INTERRUPT_EP_NUM)
+        {
+            //USBD_LL_Transmit(pdev, INTERRUPT_EP_NUM, (uint8_t *)&configured_mute, 1);
+            //suppose this is called to informed that interrupt data was sent, so nothing to do
+            epnum2_cpt++;
+        }
+        else
+        {
+            while (1)
+            {
+
+                rx_epum = epnum;
+            }; // should not receive unknown EP
+        }
+    }
 
   return (uint8_t)USBD_OK;
 }
@@ -391,7 +457,7 @@ void USBD_AUDIO_Sync(USBD_HandleTypeDef *pdev)
 
   AudioBuffer_Sync(&haudio->aud_buf, AUDIO_SYNC_CLK_DIV << 3);
 
-  USBD_AUDIO_UpdateFB(pdev);
+  USBD_AUDIO_UpdateFB(&hUsbDeviceHS);
 
   if ((haudio->aud_buf.state == AB_UDFL) && (haudio->state == AUDIO_STATE_PLAYING))
 	{
@@ -554,7 +620,7 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
       }
       else if (HIBYTE(req->wValue) == FU_MUTE_CONTROL)
       {
-          SET_DATA(pbuf, uint16_t, 0); // indicate to windows the mute state to display at startup, should reflect the internal state.
+          SET_DATA(pbuf, uint8_t, configured_mute); // indicate to windows the mute state to display at startup, should reflect the internal state.
       }
       else
       {

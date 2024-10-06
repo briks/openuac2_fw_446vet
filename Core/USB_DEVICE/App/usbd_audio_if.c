@@ -1,8 +1,9 @@
 #include "ak4490r.h"
 #include "usbd_audio_if.h"
 #include "main.h"
+#include "usb_device.h"
 
-extern USBD_HandleTypeDef hUsbDeviceHS;
+
 extern I2S_HandleTypeDef AUDIO_I2S_MSTR_HANDLE;
 extern I2S_HandleTypeDef AUDIO_I2S_SLAVE_HANDLE;
 extern DMA_HandleTypeDef hdma_memtomem_dma2_stream0;

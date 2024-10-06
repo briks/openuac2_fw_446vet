@@ -11,9 +11,9 @@ extern I2C_HandleTypeDef AK4490R_I2C_HANDLE;
 
 static uint8_t play;
 uint8_t requested_volume = AUDIO_CUR_VOL; // Volume set after init, windows range [0..100]
-uint8_t configured_volume = 49;   // Set a differente value, to force a set @requested_attenuation after init.
-bool requested_mute = false; // win starts unmuted
-bool configured_mute = false;
+uint8_t configured_volume = 49;           // Set a differente value, to force a set @requested_volume after init.
+bool requested_mute = false; // starts unmuted when amp switch on
+bool configured_mute = false; // will be set true as amp is off at init, and switch back when amp is started
 AUDIO_FormatTypeDef requested_format = AUDIO_FORMAT_PCM;
 AUDIO_FormatTypeDef configured_format = AUDIO_FORMAT_DSD; // Force a set @requested_format after init.
 uint8_t regread;
@@ -123,7 +123,9 @@ void AK4490R_DAC_SetMute_Force(void)
     // store mute state to restore it in case of power on
     requested_mute = configured_mute || requested_mute;
     AK4490R_DAC_SetMute_Immediate(true);
+    
     configured_mute = true;
+    USBD_AUDIO_signal_mute_change();
 }
 
 uint8_t AK4490R_DAC_SetFormat(uint8_t format)
@@ -206,6 +208,7 @@ void AK4490R_ProcessEvents()
             {// Unmute
                 I2C_Status |= AK4490R_DAC_SetMute_Immediate(false);
             }
+            USBD_AUDIO_signal_mute_change();
         }
     }
 
