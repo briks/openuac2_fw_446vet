@@ -52,12 +52,14 @@ extern "C" {
 #define AUDIO_MIN_FREQ                  44100U
 #define AUDIO_MAX_FREQ                  768000U
 #define AUDIO_FREQ_RES                  1U
-#define AUDIO_CUR_VOL                   80//(50*256), used as startup volume, in windows unit [0..100]
-//from + 127.9961 dB(0x7FFF) down to - 127.9961 dB(0x8001) in steps of 1 / 256 dB or 0.00390625 dB(0x0001)
-#define AUDIO_MIN_VOL                   0//(  -128*256)
-#define AUDIO_MAX_VOL                   100// should be (0*256) in 1/256db, but in fact it's the max that windows will send, so let it be the windows max
-#define AUDIO_VOL_RES                   1//(  1*256)
-
+/* USB Audio Class 2.0 volume values are signed Q8.8 dB.
+ * Range: 0 dB (full) down to -60 dB, in 0.5 dB steps.
+ * Special value 0x8000 means "silence" (use mute control instead).
+ */
+#define AUDIO_MIN_VOL   ((int16_t)(-60 * 256))   /* -60 dB  = 0xC400 */
+#define AUDIO_MAX_VOL   ((int16_t)(  0 * 256))   /*   0 dB  = 0x0000 */
+#define AUDIO_VOL_RES   ((int16_t)(      128))     /* 0.5 dB step */
+#define AUDIO_CUR_VOL   ((int16_t)(-20 * 256))   /* startup at -20 dB */
 #define FEEDBACK_HS_BINTERVAL           4U  // for 8µframe or 1 ms
 #define STREAMING_HS_BINTERVAL          1U  // for 1µframe of 1/8 ms, Interval for polling endpoint for data transfers
 #define INTERRUPT_HS_BINTERVAL          5U  // for 16µframe or 2 ms

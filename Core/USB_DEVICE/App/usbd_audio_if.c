@@ -157,11 +157,12 @@ static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 		break;
 
 	case AUDIO_CMD_VOLUME:
-        if (codec->DAC_Volume != NULL)
+        if (codec->DAC_Volume != NULL && size >= 2)
         {
-            codec->DAC_Volume(*pbuf);
+            int16_t vol = (int16_t) (pbuf[0] | (pbuf[1] << 8)); /* little-endian q8.8 */
+            codec->DAC_Volume(vol);
         }
-		break;
+        break;
 
 	default:
 		break;

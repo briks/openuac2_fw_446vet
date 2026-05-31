@@ -636,7 +636,7 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
   case FEATURE_UNIT_ID:
       if (HIBYTE(req->wValue) == FU_VOLUME_CONTROL)
       {
-          SET_DATA(pbuf, uint16_t, configured_volume);
+          SET_DATA(pbuf, int16_t, configured_volume);
       }
       else if (HIBYTE(req->wValue) == FU_MUTE_CONTROL)
       {
@@ -713,9 +713,9 @@ static void AUDIO_REQ_GetRange(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *r
 		if (HIBYTE(req->wValue) == FU_VOLUME_CONTROL)
 		{
 			SET_DATA(pbuf, uint16_t, 1U); // Number of subrange below
-			SET_DATA(pbuf, uint16_t, AUDIO_MIN_VOL);
-			SET_DATA(pbuf, uint16_t, AUDIO_MAX_VOL);
-			SET_DATA(pbuf, uint16_t, AUDIO_VOL_RES);
+			SET_DATA(pbuf, int16_t, AUDIO_MIN_VOL);
+			SET_DATA(pbuf, int16_t, AUDIO_MAX_VOL);
+			SET_DATA(pbuf, int16_t, AUDIO_VOL_RES);
 		}
 		else
 		{

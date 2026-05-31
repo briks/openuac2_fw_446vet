@@ -49,7 +49,7 @@ typedef struct
 	uint8_t (*DAC_Stop)(void);
 	uint8_t (*DAC_Freq)(uint32_t);
 	uint8_t (*DAC_Mute)(uint8_t);
-	uint8_t (*DAC_Volume)(uint8_t);
+	uint8_t (*DAC_Volume)(int16_t);
 } AUDIO_CodecTypeDef;
 
 #ifdef __cplusplus
