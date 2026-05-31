@@ -190,6 +190,7 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 
   haudio->alt_setting = 0;
   haudio->stream_type = AUDIO_FORMAT_PCM;
+  haudio->sam_freq = 48000U;          /* default until host sets rate */
   AudioBuffer_Init(&haudio->aud_buf, 0);
 
   /* Initialize the Audio output Hardware layer */
@@ -650,7 +651,16 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
       break;
 
   case CLOCK_SOURCE_ID:
-  	break;
+    if (HIBYTE(req->wValue) == CS_SAM_FREQ_CONTROL)
+    {
+        SET_DATA(pbuf, uint32_t, haudio->sam_freq);
+    }
+    else
+    {
+        USBD_CtlError(pdev, req);
+        return;
+    }
+    break;
 
   default:
   	USBD_CtlError(pdev, req);
