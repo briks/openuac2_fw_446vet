@@ -90,10 +90,16 @@ static uint8_t USBD_AUDIO_GetStreamType(USBD_HandleTypeDef* pdev)
 {
 	USBD_AUDIO_HandleTypeDef* haudio = pdev->pClassDataCmsit[pdev->classId];
 	uint32_t* buf = haudio->pkt_buf;
+  uint32_t rxSize = USBD_LL_GetRxDataSize(pdev, STREAMING_EP_NUM);
 
 	const uint8_t marker_table[] = { 0x05, 0xfa };
 
 	uint8_t idx = 0;
+
+  if (rxSize < AUDIO_DOP_DETECT_COUNT * sizeof(uint32_t))
+  {
+    return haudio->stream_type;   /* keep current type, not enough data */
+  }
 
 	switch (*buf >> 24)
 	{

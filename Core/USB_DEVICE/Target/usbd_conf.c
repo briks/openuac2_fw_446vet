@@ -269,11 +269,13 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
 {
   if (pdev->id == DEVICE_HS)
   {
-		hpcd_USB_OTG_HS.pData = pdev;
-		pdev->pData = &hpcd_USB_OTG_HS;
+    hpcd_USB_OTG_HS.pData = pdev;
+    pdev->pData = &hpcd_USB_OTG_HS;
+    return USBD_OK;
   }
 
-  return USBD_OK;
+  /* Only USB OTG HS is wired and configured on this board. */
+  return USBD_FAIL;
 }
 
 /**

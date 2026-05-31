@@ -494,6 +494,17 @@ __STATIC_INLINE uint16_t SWAPBYTE(uint8_t *addr)
   * @{
   */
 
+static uint8_t USBD_AUDIO_GetStreamType(USBD_HandleTypeDef* pdev)
+{
+    USBD_AUDIO_HandleTypeDef* haudio = pdev->pClassDataCmsit[pdev->classId];
+    uint32_t rxSize = USBD_LL_GetRxDataSize(pdev, STREAMING_EP_NUM);
+    
+    if (rxSize < AUDIO_DOP_DETECT_COUNT * 4U) {
+        return haudio->stream_type;   /* keep current type, not enough data */
+    }
+    /* ... rest unchanged ... */
+}
+
 /**
   * @}
   */
