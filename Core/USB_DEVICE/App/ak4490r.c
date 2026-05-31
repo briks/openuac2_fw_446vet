@@ -70,9 +70,18 @@ uint8_t AK4490R_DAC_Init()
 	//HAL_I2C_Mem_Write_IT(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x0b, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, sizeof(registre));
 
 	//reg27 no +18db gain (not good idea) made volumne ch2 same a ch1, and allow volume update
-	//registre = 0xdc;
+	//registre = 0xdc; // wrong value for +18db, should be 8F
+
 	//reg27 setasrc enable, volume ch2 same as ch1, and allow volume update
-	registre = 0x8C;
+    // 0x8C with reserved bits at defaults:
+    //   bit 7 = 1 (asrc_en)
+    //   [6:5] = 10 (reserved default)
+    //   bit 4 = 1 (reserved default)
+    //   bit 3 = 1 (ch1_volume = link L/R)
+    //   bit 2 = 1 (latch_volume)
+    //   [1:0] = 00 (no 18dB gain)
+    // = 1011 1100 = 0xBC
+    registre = 0xBC;
     HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG27_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&registre, sizeof(registre), TIMEOUT_I2C_DELAY);
     AK4490R_DAC_SetMute_Force(); // startup muted, waiting for amp power ON, even if windows starts unmuted
     return 0;

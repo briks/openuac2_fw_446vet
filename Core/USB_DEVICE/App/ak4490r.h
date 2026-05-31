@@ -6,18 +6,26 @@
 
 #define AK4490R_I2C_HANDLE       hi2c1
 
+
+// For ES9038Q2M DAC
 #define AK4490R_I2C_DEV_ADDR     (0x48 << 1)
-#define AK4490R_REG1_ADDR        0x01
-#define AK4490R_REG7_ADDR        0x07
-#define AK4490R_REG8_ADDR        0x08
-#define AK4490R_REG11_ADDR       0x0b
-#define AK4490R_REG14_ADDR       0x0e
-#define AK4490R_REG15_ADDR       0x0f
-#define AK4490R_REG16_ADDR       0x10
-#define AK4490R_REG27_ADDR       0x1b
+#define AK4490R_REG1_ADDR        1
+#define AK4490R_REG7_ADDR        7
+#define AK4490R_REG8_ADDR        8
+#define AK4490R_REG11_ADDR       11
+#define AK4490R_REG14_ADDR       14
+#define AK4490R_REG15_ADDR       15
+#define AK4490R_REG16_ADDR       16
+#define AK4490R_REG27_ADDR       27
 #define AK4490R_REG96_ADDR       96
 
-/*#define AK4490R_CONTROL4_ADDR      0x05
+/*
+#define AK4490R_CONTROL1_ADDR      0x00
+#define AK4490R_CONTROL2_ADDR      0x01
+#define AK4490R_CONTROL3_ADDR      0x02
+#define AK4490R_LCH_ATT_ADDR       0x03
+#define AK4490R_RCH_ATT_ADDR       0x04
+#define AK4490R_CONTROL4_ADDR      0x05
 #define AK4490R_DSD1_ADDR          0x06
 #define AK4490R_CONTROL5_ADDR      0x07
 #define AK4490R_SOUND_CONTROL_ADDR 0x08
