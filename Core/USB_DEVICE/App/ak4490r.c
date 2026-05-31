@@ -11,9 +11,10 @@ extern I2C_HandleTypeDef AK4490R_I2C_HANDLE;
 
 static uint8_t play;
 uint8_t requested_volume = AUDIO_CUR_VOL; // Volume set after init, windows range [0..100]
-uint8_t configured_volume = 49;           // Set a differente value, to force a set @requested_volume after init.
+volatile uint8_t configured_volume  = 49; // Set a differente value, to force a set @requested_volume after init.
 bool requested_mute = false; // starts unmuted when amp switch on
-bool configured_mute = false; // will be set true as amp is off at init, and switch back when amp is started
+volatile bool configured_mute = false; // will be set true as amp is off at init, and switch back when amp is started
+volatile bool audio_stop_pending = false;
 AUDIO_FormatTypeDef requested_format = AUDIO_FORMAT_PCM;
 AUDIO_FormatTypeDef configured_format = AUDIO_FORMAT_DSD; // Force a set @requested_format after init.
 uint8_t regread;
@@ -184,7 +185,13 @@ void AK4490R_ProcessEvents()
         {
             Error_cancel_nonBlocking(ERROR_I2C);
         }
-   }
+    }
+
+    if (audio_stop_pending)
+    {
+        audio_stop_pending = false;
+        USBD_AUDIO_fops.AUDIO_Cmd(NULL, 0, AUDIO_CMD_STOP);
+    }
 
     if (play)
     {

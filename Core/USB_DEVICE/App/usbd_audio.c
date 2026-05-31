@@ -125,12 +125,28 @@ static uint8_t USBD_AUDIO_GetStreamType(USBD_HandleTypeDef* pdev)
 
 void USBD_AUDIO_UpdateFB(USBD_HandleTypeDef *pdev)
 {
-	USBD_AUDIO_HandleTypeDef* haudio = pdev->pClassDataCmsit[pdev->classId];
+    USBD_AUDIO_HandleTypeDef *haudio = pdev->pClassDataCmsit[pdev->classId];
 
-	int64_t tmp = (haudio->aud_buf.size - (haudio->aud_buf.capacity >> 1)) << 3;
+    /* Use signed 64-bit to avoid uint32 underflow during subtraction. */
+    int64_t tmp = ((int64_t)haudio->aud_buf.size
+                 - (int64_t)(haudio->aud_buf.capacity >> 1)) << 3;
 
-	//tmp = CLAMP(tmp, -(1 << 16), (1 << 16));
-	haudio->feedback_value = haudio->feedback_base - tmp;
+    /* Defensive clamp: limit deviation to ±1/8 of nominal (~12.5%).
+     * Steady-state geometry already bounds this to ~6.25% in PCM,
+     * so the clamp only acts on transients (sample-rate change,
+     * buffer reset, init before sam_freq is known). */
+    if (haudio->feedback_base != 0)
+    {
+        int32_t lim = (int32_t)(haudio->feedback_base >> 3);
+        if (tmp >  lim) tmp =  lim;
+        if (tmp < -lim) tmp = -lim;
+
+        haudio->feedback_value = haudio->feedback_base - (int32_t)tmp;
+    }
+    else
+    {
+        haudio->feedback_value = 0;  /* no valid base yet */
+    }
 }
 
 static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
@@ -447,35 +463,33 @@ static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef *pdev)
 
 void USBD_AUDIO_Sync(USBD_HandleTypeDef *pdev)
 {
-  USBD_AUDIO_HandleTypeDef* haudio = pdev->pClassDataCmsit[pdev->classId];
-  USBD_AUDIO_ItfTypeDef* itf = pdev->pUserData[pdev->classId];
+    USBD_AUDIO_HandleTypeDef* haudio = pdev->pClassDataCmsit[pdev->classId];
 
-  if (haudio->state == AUDIO_STATE_STOPPED)
-  {
-  	return;
-  }
+    if (haudio->state == AUDIO_STATE_STOPPED)
+    {
+        return;
+    }
 
-  AudioBuffer_Sync(&haudio->aud_buf, AUDIO_SYNC_CLK_DIV << 3);
+    AudioBuffer_Sync(&haudio->aud_buf, AUDIO_SYNC_CLK_DIV << 3);
+    USBD_AUDIO_UpdateFB(&hUsbDeviceHS);
 
-  USBD_AUDIO_UpdateFB(&hUsbDeviceHS);
-
-  if ((haudio->aud_buf.state == AB_UDFL) && (haudio->state == AUDIO_STATE_PLAYING))
-	{
-        itf->AUDIO_Cmd(NULL, 0, AUDIO_CMD_STOP);
+    if ((haudio->aud_buf.state == AB_UDFL) && (haudio->state == AUDIO_STATE_PLAYING))
+    {
+        /* Defer the (potentially blocking) stop to a task */
+        haudio->state = AUDIO_STATE_STOPPED;     /* prevents re-entry */
         haudio->stream_type = AUDIO_FORMAT_PCM;
-		haudio->state = AUDIO_STATE_STOPPED;
-	}
+        audio_stop_pending = true; // signal to main task
+    }
 
-  if (haudio->aud_buf.size < haudio->aud_buf.capacity >> 2)
-	{// this could occur on stop or next track
-		LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
-		uint8_t tmp = 1;
-		//itf->AudioCmd(&tmp, sizeof(tmp), AUDIO_CMD_MUTE);
-	}
-  else
-  {
-  	LL_GPIO_SetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
-  }
+    /* LED logic */
+    if (haudio->aud_buf.size < haudio->aud_buf.capacity >> 2)
+    {
+        LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
+    }
+    else
+    {
+        LL_GPIO_SetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
+    }
 }
 
 static uint8_t USBD_AUDIO_IsoINIncomplete(USBD_HandleTypeDef *pdev, uint8_t epnum)

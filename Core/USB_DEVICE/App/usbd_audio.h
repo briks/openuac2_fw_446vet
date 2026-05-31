@@ -46,8 +46,8 @@ extern "C" {
 
 #define AUDIO_SYNC_CLK_DIV              32U
 
-#define AUDIO_48K_FEEDBACK_VALUE        0x60000
-#define AUDIO_44K1_FEEDBACK_VALUE       0x58333
+#define AUDIO_48K_FEEDBACK_VALUE        0x60000 //6 samples per microframe @ 8kHz
+#define AUDIO_44K1_FEEDBACK_VALUE       0x58333 //5.5125 samples per microframe @ 8kHz
 
 #define AUDIO_MIN_FREQ                  44100U
 #define AUDIO_MAX_FREQ                  768000U

@@ -121,8 +121,9 @@
 	uint8_t control8;
 } AK4490R_RegisterTypeDef;
 
-extern uint8_t configured_volume;
-extern bool configured_mute;
+extern volatile uint8_t configured_volume;
+extern volatile bool configured_mute;
+extern volatile bool audio_stop_pending;
 
 uint8_t AK4490R_DAC_Init();
 uint8_t AK4490R_DAC_SetVolume(uint8_t vol);
