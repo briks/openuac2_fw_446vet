@@ -11,6 +11,10 @@
 #error "Composite device is unsupported."
 #endif
 
+
+#include "log.h"
+#define LOG_LOCAL_LEVEL LOG_LEVEL_INFO // Set to LOG_LEVEL_DEBUG for full logs
+
 static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
 static uint8_t USBD_AUDIO_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
 static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req);
@@ -68,21 +72,22 @@ USBD_ClassTypeDef USBD_AUDIO =
 
 void USBD_AUDIO_signal_mute_change(void)
 {
-    if (USBD_LL_Transmit(&hUsbDeviceHS, INTERRUPT_EP_ADDR, (uint8_t *)s_Haudio.interrupt_mute_ctrl, INTERRUPT_PACKET_SIZE) != USBD_OK)
+    if (USBD_LL_Transmit(&hUsbDeviceHS, INTERRUPT_EP_ADDR,
+                          (uint8_t *)s_Haudio.interrupt_mute_ctrl,
+                          INTERRUPT_PACKET_SIZE) != USBD_OK)
     {
-        while (1)
-        {
-        };
+        LOG_WARN("mute interrupt transmit failed");
+        /* Non-fatal: host will resync via GET_CUR if it cares. */
     }
 }
 
 void USBD_AUDIO_signal_volume_change(void)
 {
-    if (USBD_LL_Transmit(&hUsbDeviceHS, INTERRUPT_EP_ADDR, (uint8_t *)s_Haudio.interrupt_volume_ctrl, INTERRUPT_PACKET_SIZE) != USBD_OK)
+    if (USBD_LL_Transmit(&hUsbDeviceHS, INTERRUPT_EP_ADDR,
+                          (uint8_t *)s_Haudio.interrupt_volume_ctrl,
+                          INTERRUPT_PACKET_SIZE) != USBD_OK)
     {
-        while (1)
-        {
-        };
+        LOG_WARN("volume interrupt transmit failed");
     }
 }
 
@@ -369,31 +374,25 @@ uint8_t epnum2_cpt = 0;
 
 static uint8_t USBD_AUDIO_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
-	USBD_AUDIO_HandleTypeDef* haudio = pdev->pClassDataCmsit[pdev->classId];
+    USBD_AUDIO_HandleTypeDef *haudio = pdev->pClassDataCmsit[pdev->classId];
 
     if (epnum == FEEDBACK_EP_NUM)
     {
-        USBD_LL_Transmit(pdev, FEEDBACK_EP_ADDR, (uint8_t *)&haudio->feedback_value, FEEDBACK_PACKET_SIZE);
+        USBD_LL_Transmit(pdev, FEEDBACK_EP_ADDR,
+                         (uint8_t *)&haudio->feedback_value,
+                         FEEDBACK_PACKET_SIZE);
+    }
+    else if (epnum == INTERRUPT_EP_NUM)
+    {
+        epnum2_cpt++;
     }
     else
     {
-        if (epnum == INTERRUPT_EP_NUM)
-        {
-            //USBD_LL_Transmit(pdev, INTERRUPT_EP_NUM, (uint8_t *)&configured_mute, 1);
-            //suppose this is called to informed that interrupt data was sent, so nothing to do
-            epnum2_cpt++;
-        }
-        else
-        {
-            while (1)
-            {
-
-                rx_epum = epnum;
-            }; // should not receive unknown EP
-        }
+        LOG_WARN("DataIn on unexpected EP %u", epnum);
+        /* Silently ignore — never observed in practice. */
     }
 
-  return (uint8_t)USBD_OK;
+    return (uint8_t)USBD_OK;
 }
 
 static uint8_t USBD_AUDIO_EP0_RxReady(USBD_HandleTypeDef *pdev)

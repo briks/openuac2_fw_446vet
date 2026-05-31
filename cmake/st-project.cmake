@@ -18,6 +18,7 @@ target_compile_definitions(
 target_include_directories(
     ${TARGET_NAME} PRIVATE
     "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Core\\Inc>"
+    "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Core/RTT>"
     "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Drivers/STM32_USB_Device_Library/Core/Inc>"
     "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Core/USB_DEVICE/App>"
     "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Core/USB_DEVICE/Target>"
@@ -29,6 +30,7 @@ target_include_directories(
     "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Middlewares\\Third_Party\\FreeRTOS\\Source\\CMSIS_RTOS>"
     "$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Middlewares\\Third_Party\\FreeRTOS\\Source\\portable\\GCC\\ARM_CM4F>"
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Core\\Inc>"
+    "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Core/RTT>"
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Drivers/STM32_USB_Device_Library/Core/Inc>"
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Core/USB_DEVICE/App>"
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:${PROJECT_SOURCE_DIR}/Core/USB_DEVICE/Target>"
@@ -103,6 +105,9 @@ target_sources(
     "Core\\USB_DEVICE\\App\\usbd_audio.c"
     "Core\\USB_DEVICE\\App\\usbd_desc.c"
     "Core\\USB_DEVICE\\Target\\usbd_conf.c"
+    "Core\\RTT\\SEGGER_RTT.c"
+    "Core\\RTT\\SEGGER_RTT_printf.c"
+    "Core\\RTT\\SEGGER_RTT_ASM_ARMv7M.S"
     "Middlewares\\Third_Party\\FreeRTOS\\Source\\CMSIS_RTOS\\cmsis_os.c"
     "Middlewares\\Third_Party\\FreeRTOS\\Source\\croutine.c"
     "Middlewares\\Third_Party\\FreeRTOS\\Source\\event_groups.c"

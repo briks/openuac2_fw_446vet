@@ -25,6 +25,7 @@
 #include "usb_device.h"
 #include "usbd_conf.h"
 #include "ak4490r.h"
+#include "SEGGER_RTT.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -175,6 +176,10 @@ int main(void)
   MX_SPI4_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+  SEGGER_RTT_Init();
+  SEGGER_RTT_WriteString(0, "Brix'Amp Boot OK\r\n");
+  LOG_INFO("Log's activated");
+
   LL_GPIO_SetOutputPin(ANALOG_ON_GPIO_Port,ANALOG_ON_Pin);
   HAL_Delay(100); // osDelay works also here
   LL_GPIO_ResetOutputPin(PDN_GPIO_Port,PDN_Pin);
