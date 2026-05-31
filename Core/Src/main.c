@@ -24,7 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "usb_device.h"
 #include "usbd_conf.h"
-#include "ak4490r.h"
+#include "es9038q2m.h"
 #include "SEGGER_RTT.h"
 #include "log.h"
 /* USER CODE END Includes */
@@ -191,7 +191,7 @@ int main(void)
   LL_GPIO_ResetOutputPin(PDN_GPIO_Port, PDN_Pin);
   LL_GPIO_ResetOutputPin(MUX_EN_GPIO_Port, MUX_EN_Pin);
   LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port, MUX_SEL_Pin);
-  AK4490R_ProcessEvents(); // Call it one time to init values, before starting usb.
+  ES9038Q2M_ProcessEvents(); // Call it one time to init values, before starting usb.
   MX_USB_DEVICE_Init();
   LOG_INFO("USB device init done");
   LL_TIM_EnableIT_UPDATE(TIM3);
@@ -880,7 +880,7 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-  	AK4490R_ProcessEvents();
+    ES9038Q2M_ProcessEvents();
     osDelay(1);
   }
   /* USER CODE END 5 */
@@ -978,7 +978,7 @@ void StartOnOff(void const *argument)
         {
             LOG_INFO("amp power OFF sequence");
             EtatAmp = false;
-            AK4490R_DAC_SetMute_Force();
+            ES9038Q2M_DAC_SetMute_Force();
 
             LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
             LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);

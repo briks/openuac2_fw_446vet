@@ -4,7 +4,7 @@
 #include "usbd_ctlreq.h"
 #include "usbd_audio_if.h"
 #include "audio_desc.h"
-#include "ak4490r.h"
+#include "es9038q2m.h"
 #include "usb_device.h"
 #include "log.h"
 
@@ -510,7 +510,7 @@ void USBD_AUDIO_Sync(USBD_HandleTypeDef *pdev)
         LOG_INFO("audio → STOPPED (underflow)");
         haudio->state = AUDIO_STATE_STOPPED;
         haudio->stream_type = AUDIO_FORMAT_PCM;
-        audio_stop_pending = true;
+        es9038q2m_audio_stop_pending = true;
     }
 
     /* LED logic */
@@ -687,11 +687,11 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
   case FEATURE_UNIT_ID:
       if (HIBYTE(req->wValue) == FU_VOLUME_CONTROL)
       {
-          SET_DATA(pbuf, int16_t, configured_volume);
+          SET_DATA(pbuf, int16_t, es9038q2m_configured_volume);
       }
       else if (HIBYTE(req->wValue) == FU_MUTE_CONTROL)
       {
-          SET_DATA(pbuf, uint8_t, configured_mute); // indicate to windows the mute state to display at startup, should reflect the internal state.
+          SET_DATA(pbuf, uint8_t, es9038q2m_configured_mute); // indicate to windows the mute state to display at startup, should reflect the internal state.
       }
       else
       {

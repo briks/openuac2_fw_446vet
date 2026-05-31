@@ -1,4 +1,4 @@
-#include "ak4490r.h"
+#include "es9038q2m.h"
 #include "usbd_audio_if.h"
 #include "main.h"
 #include "usb_device.h"
@@ -14,9 +14,7 @@ static uint8_t AUDIO_DeInit();
 static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd);
 static uint8_t AUDIO_GetState();
 
-extern AUDIO_CodecTypeDef ak4490r_instance;
-static AUDIO_CodecTypeDef* codec = &ak4490r_instance;
-static uint32_t zero;
+static const AUDIO_CodecTypeDef* const codec = &es9038q2m_instance;
 
 USBD_AUDIO_ItfTypeDef USBD_AUDIO_fops =
 {
