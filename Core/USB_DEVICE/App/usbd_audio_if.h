@@ -40,7 +40,7 @@ typedef enum _AudioItfState
 	ITF_STOPPED
 } AudioItfState;
 
-typedef struct
+typedef struct 
 {
 	uint8_t (*DAC_Init)(void);
 	uint8_t (*DAC_DeInit)(void);

@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "usbd_def.h"
+#include "log.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -68,13 +69,23 @@ extern TIM_HandleTypeDef htim6;
 extern USBD_HandleTypeDef hUsbDeviceHS;
 /* USER CODE END EV */
 
-/******************************************************************************/
-/*           Cortex-M4 Processor Interruption and Exception Handlers          */
-/******************************************************************************/
-/**
-  * @brief This function handles Non maskable interrupt.
-  */
-void NMI_Handler(void)
+void fault_drain_and_halt(void)
+{
+    /* Wait for logs to be sent before halting */
+
+    while (1) {
+        /* Spin forever */
+    }   
+}
+
+    /******************************************************************************/
+    /*           Cortex-M4 Processor Interruption and Exception Handlers          */
+    /******************************************************************************/
+    /**
+     * @brief This function handles Non maskable interrupt.
+     */
+    void
+    NMI_Handler(void)
 {
     LOG_ERR("NMI");
     fault_drain_and_halt();

@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "usbd_audio_if.h"
+#include "main.h"
 
 /* ES9038Q2M DAC driver
 	* --------------------

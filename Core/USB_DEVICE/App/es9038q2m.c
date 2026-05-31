@@ -1,5 +1,4 @@
 #include "es9038q2m.h"
-#include "usbd_audio_if.h"
 #include "main.h"
 #include "cmsis_os.h"
 #include "log.h"
@@ -10,7 +9,7 @@ extern I2C_HandleTypeDef ES9038Q2M_I2C_HANDLE;
 
 static uint8_t play;
 
-uint8_t  requested_volume  = AUDIO_CUR_VOL;            /* set at boot, host range */
+int16_t requested_volume = AUDIO_CUR_VOL;                         /* set at boot, host range */
 volatile int16_t es9038q2m_configured_volume = AUDIO_CUR_VOL + 1; /* differ → force apply on first ProcessEvents */
 bool     requested_mute    = false;                    /* unmuted when amp powers on */
 volatile bool es9038q2m_configured_mute    = false;              /* set true at init since amp is off */
@@ -24,16 +23,15 @@ uint8_t status_register = 0;
 uint8_t registre;
 
 const AUDIO_CodecTypeDef es9038q2m_instance =
-{
-    ES9038Q2M_DAC_Init,
-    NULL,
-    ES9038Q2M_DAC_Play,
-    ES9038Q2M_DAC_SetFormat,
-    ES9038Q2M_DAC_Stop,
-    NULL,
-    ES9038Q2M_DAC_SetMute,
-    ES9038Q2M_DAC_SetVolume
-};
+    {
+        ES9038Q2M_DAC_Init,
+        NULL,
+        ES9038Q2M_DAC_Play,
+        ES9038Q2M_DAC_SetFormat,
+        ES9038Q2M_DAC_Stop,
+        NULL,
+        ES9038Q2M_DAC_SetMute,
+        ES9038Q2M_DAC_SetVolume};
 
 uint8_t ES9038Q2M_DAC_Init(void)
 {

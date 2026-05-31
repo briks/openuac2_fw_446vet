@@ -1,6 +1,8 @@
 {
   "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
 "cmake.configureOnOpen": true,
+"cmake.buildInTerminal": true,
+"terminal.integrated.enableFileLinks": true,
 "files.associations": {
     "compare": "c",
     "main.h": "c"
