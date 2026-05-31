@@ -2,6 +2,7 @@
 #include "usbd_audio_if.h"
 #include "main.h"
 #include "usb_device.h"
+#include "log.h"
 
 
 extern I2S_HandleTypeDef AUDIO_I2S_MSTR_HANDLE;
@@ -27,23 +28,42 @@ USBD_AUDIO_ItfTypeDef USBD_AUDIO_fops =
 
 static void RCC_I2S_SetFreq(uint32_t freq)
 {
-	__HAL_I2S_DISABLE(&AUDIO_I2S_MSTR_HANDLE);
-	LL_RCC_PLLI2S_Disable();
+    __HAL_I2S_DISABLE(&AUDIO_I2S_MSTR_HANDLE);
+    LL_RCC_PLLI2S_Disable();
 
-	if (freq % 48000U == 0)
-	{
-		LL_RCC_PLLI2S_ConfigDomain_I2S(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLI2SM_DIV_16, 128, LL_RCC_PLLI2SR_DIV_2);
-		MODIFY_REG(AUDIO_I2S_MSTR_HANDLE.Instance->I2SPR, SPI_I2SPR_I2SDIV_Msk, (PLLI2SQ_48K / (freq << 7U)));
-	}
-	else
-	{
-		LL_RCC_PLLI2S_ConfigDomain_I2S(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLI2SM_DIV_20, 147, LL_RCC_PLLI2SR_DIV_2);
-		MODIFY_REG(AUDIO_I2S_MSTR_HANDLE.Instance->I2SPR, SPI_I2SPR_I2SDIV_Msk, (PLLI2SQ_44K1 / (freq << 7U)));
-	}
+    uint32_t divisor;
+    if (freq % 48000U == 0)
+    {
+        LL_RCC_PLLI2S_ConfigDomain_I2S(LL_RCC_PLLSOURCE_HSE,
+                                       LL_RCC_PLLI2SM_DIV_16,
+                                       128,
+                                       LL_RCC_PLLI2SR_DIV_2);
+        divisor = PLLI2SQ_48K / (freq << 7U);
+        MODIFY_REG(AUDIO_I2S_MSTR_HANDLE.Instance->I2SPR, SPI_I2SPR_I2SDIV_Msk, divisor);
+        LOG_DBG("PLLI2S → 48k family, N=128, I2SDIV=%lu", (unsigned long) divisor);
+    }
+    else
+    {
+        LL_RCC_PLLI2S_ConfigDomain_I2S(LL_RCC_PLLSOURCE_HSE,
+                                       LL_RCC_PLLI2SM_DIV_20,
+                                       147,
+                                       LL_RCC_PLLI2SR_DIV_2);
+        divisor = PLLI2SQ_44K1 / (freq << 7U);
+        MODIFY_REG(AUDIO_I2S_MSTR_HANDLE.Instance->I2SPR, SPI_I2SPR_I2SDIV_Msk, divisor);
+        LOG_DBG("PLLI2S → 44k1 family, N=147, I2SDIV=%lu", (unsigned long) divisor);
+    }
 
-	LL_RCC_PLLI2S_Enable();
-	while(!LL_RCC_PLLI2S_IsReady());
-	__HAL_I2S_ENABLE(&AUDIO_I2S_MSTR_HANDLE);
+    LL_RCC_PLLI2S_Enable();
+    uint32_t timeout = 100000;
+    while (!LL_RCC_PLLI2S_IsReady() && --timeout)
+    {
+        __NOP();
+    }
+    if (timeout == 0)
+    {
+        LOG_ERR("PLLI2S failed to lock for freq=%lu Hz", (unsigned long) freq);
+    }
+    __HAL_I2S_ENABLE(&AUDIO_I2S_MSTR_HANDLE);
 }
 
 static uint8_t AUDIO_Init()
@@ -110,25 +130,30 @@ static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 		}
 		break;
 
-	case AUDIO_CMD_PLAY:
-		if (codec->DAC_Play != NULL)
-		{
-			codec->DAC_Play();
-		}
-		/* Start DMA according to current stream type. */
-		if (haudio->stream_type == AUDIO_FORMAT_DSD)
-		{
-			HAL_I2S_Transmit_DMA(&AUDIO_I2S_SLAVE_HANDLE,
-								(uint16_t*)&aud_buf->mem[aud_buf->capacity],
-								aud_buf->capacity >> 2);
-		}
-		HAL_I2S_Transmit_DMA(&AUDIO_I2S_MSTR_HANDLE,
-							(uint16_t*)aud_buf->mem,
-							aud_buf->capacity >> 2);
-		LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
-		break;
+    case AUDIO_CMD_PLAY:
+        if (codec->DAC_Play != NULL)
+            codec->DAC_Play();
+        if (haudio->stream_type == AUDIO_FORMAT_DSD)
+        {
+            if (HAL_I2S_Transmit_DMA(&AUDIO_I2S_SLAVE_HANDLE,
+                                     (uint16_t *) &aud_buf->mem[aud_buf->capacity],
+                                     aud_buf->capacity >> 2)
+                != HAL_OK)
+            {
+                LOG_ERR("I2S slave DMA start failed (DSD play)");
+            }
+        }
+        if (HAL_I2S_Transmit_DMA(&AUDIO_I2S_MSTR_HANDLE,
+                                 (uint16_t *) aud_buf->mem,
+                                 aud_buf->capacity >> 2)
+            != HAL_OK)
+        {
+            LOG_ERR("I2S master DMA start failed (play)");
+        }
+        LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
+        break;
 
-	case AUDIO_CMD_STOP:
+    case AUDIO_CMD_STOP:
         if (codec->DAC_Stop != NULL)
         {
             codec->DAC_Stop();

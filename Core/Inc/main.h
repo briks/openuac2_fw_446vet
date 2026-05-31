@@ -72,7 +72,10 @@ extern bool EtatAmp;     // variable globale etat des amplis on/off
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
-void Error_Handler(void);
+void Error_Handler_str(const char *where);
+#define _STR(x) #x
+#define _XSTR(x) _STR(x)
+#define Error_Handler() Error_Handler_str(__FILE__ ":" _XSTR(__LINE__) " " __func__)
 
 /* USER CODE BEGIN EFP */
 void Error_cancel_nonBlocking(errorNbr errorBit_nBr);

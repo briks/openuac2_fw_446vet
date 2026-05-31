@@ -76,14 +76,8 @@ extern USBD_HandleTypeDef hUsbDeviceHS;
   */
 void NMI_Handler(void)
 {
-  /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
-
-  /* USER CODE END NonMaskableInt_IRQn 0 */
-  /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
-  while (1)
-  {
-  }
-  /* USER CODE END NonMaskableInt_IRQn 1 */
+    LOG_ERR("NMI");
+    fault_drain_and_halt();
 }
 
 /**
@@ -91,14 +85,15 @@ void NMI_Handler(void)
   */
 void HardFault_Handler(void)
 {
-  /* USER CODE BEGIN HardFault_IRQn 0 */
-
-  /* USER CODE END HardFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_HardFault_IRQn 0 */
-    /* USER CODE END W1_HardFault_IRQn 0 */
-  }
+    /* Capture key registers before they're lost */
+    uint32_t cfsr  = SCB->CFSR;
+    uint32_t hfsr  = SCB->HFSR;
+    uint32_t mmfar = SCB->MMFAR;
+    uint32_t bfar  = SCB->BFAR;
+    LOG_ERR("HARDFAULT cfsr=0x%08lX hfsr=0x%08lX mmfar=0x%08lX bfar=0x%08lX",
+            (unsigned long)cfsr, (unsigned long)hfsr,
+            (unsigned long)mmfar, (unsigned long)bfar);
+    fault_drain_and_halt();
 }
 
 /**
@@ -106,14 +101,9 @@ void HardFault_Handler(void)
   */
 void MemManage_Handler(void)
 {
-  /* USER CODE BEGIN MemoryManagement_IRQn 0 */
-
-  /* USER CODE END MemoryManagement_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_MemoryManagement_IRQn 0 */
-    /* USER CODE END W1_MemoryManagement_IRQn 0 */
-  }
+    LOG_ERR("MemManage cfsr=0x%08lX mmfar=0x%08lX",
+            (unsigned long)SCB->CFSR, (unsigned long)SCB->MMFAR);
+    fault_drain_and_halt();
 }
 
 /**
@@ -121,14 +111,9 @@ void MemManage_Handler(void)
   */
 void BusFault_Handler(void)
 {
-  /* USER CODE BEGIN BusFault_IRQn 0 */
-
-  /* USER CODE END BusFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_BusFault_IRQn 0 */
-    /* USER CODE END W1_BusFault_IRQn 0 */
-  }
+    LOG_ERR("BusFault cfsr=0x%08lX bfar=0x%08lX",
+            (unsigned long)SCB->CFSR, (unsigned long)SCB->BFAR);
+    fault_drain_and_halt();
 }
 
 /**
@@ -136,14 +121,8 @@ void BusFault_Handler(void)
   */
 void UsageFault_Handler(void)
 {
-  /* USER CODE BEGIN UsageFault_IRQn 0 */
-
-  /* USER CODE END UsageFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_UsageFault_IRQn 0 */
-    /* USER CODE END W1_UsageFault_IRQn 0 */
-  }
+    LOG_ERR("UsageFault cfsr=0x%08lX", (unsigned long)SCB->CFSR);
+    fault_drain_and_halt();
 }
 
 /**
@@ -213,21 +192,20 @@ uint32_t pressDuration = 0;
   */
 void EXTI15_10_IRQHandler(void)
 {
-    /* USER CODE BEGIN EXTI15_10_IRQn 0 */
     static uint32_t pressStartTime = 0;
 
-    if (LL_GPIO_IsInputPinSet(GPIOD, GPIO_PIN_11) == 1) // test voir si le BP est press�
-    {
+    if (LL_GPIO_IsInputPinSet(GPIOD, GPIO_PIN_11) == 1) {
         pressStartTime = HAL_GetTick();
+        LOG_DBG("pwr button DOWN @ %lu ms", (unsigned long)pressStartTime);
     }
-    if (LL_GPIO_IsInputPinSet(GPIOD, GPIO_PIN_11) == 0) // test voir si le BP est relach�
-    {
-        
+    if (LL_GPIO_IsInputPinSet(GPIOD, GPIO_PIN_11) == 0) {
         pressDuration = HAL_GetTick() - pressStartTime;
-        if (   (pressDuration < POWER_BUTTON_PRESS_MAX_TIME)
-            && (pressDuration > POWER_BUTTON_PRESS_MIN_TIME))
-        {
+        LOG_DBG("pwr button UP, duration=%lu ms", (unsigned long)pressDuration);
+        if ((pressDuration < POWER_BUTTON_PRESS_MAX_TIME) &&
+            (pressDuration > POWER_BUTTON_PRESS_MIN_TIME)) {
             CommandeAmp = !CommandeAmp;
+        } else {
+            LOG_WARN("power button press ignored (%lu ms)", (unsigned long)pressDuration);
         }
     }
 

@@ -21,11 +21,10 @@
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx.h"
 #include "stm32f4xx_hal.h"
-
 #include "usbd_def.h"
 #include "usbd_core.h"
-
 #include "usbd_audio.h"
+#include "log.h"
 
 /* USER CODE BEGIN Includes */
 
@@ -131,28 +130,27 @@ void HAL_PCD_SOFCallback(PCD_HandleTypeDef *hpcd)
 #if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
 static void PCD_ResetCallback(PCD_HandleTypeDef *hpcd)
 #else
-void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd)
+void HAL_PCD_ResetCallback(PCD_HandleTypeDef * hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
-  USBD_SpeedTypeDef speed = USBD_SPEED_FULL;
+    USBD_SpeedTypeDef speed = USBD_SPEED_FULL;
+    if (hpcd->Init.speed == PCD_SPEED_HIGH)
+    {
+        speed = USBD_SPEED_HIGH;
+    }
+    else if (hpcd->Init.speed == PCD_SPEED_FULL)
+    {
+        speed = USBD_SPEED_FULL;
+    }
+    else
+    {
+        LOG_ERR("PCD Reset unknown speed");
+        Error_Handler();
+    }
 
-  if ( hpcd->Init.speed == PCD_SPEED_HIGH)
-  {
-    speed = USBD_SPEED_HIGH;
-  }
-  else if ( hpcd->Init.speed == PCD_SPEED_FULL)
-  {
-    speed = USBD_SPEED_FULL;
-  }
-  else
-  {
-    Error_Handler();
-  }
-    /* Set Speed. */
-  USBD_LL_SetSpeed((USBD_HandleTypeDef*)hpcd->pData, speed);
-
-  /* Reset Device. */
-  USBD_LL_Reset((USBD_HandleTypeDef*)hpcd->pData);
+    LOG_INFO("USB reset (speed=%s)", speed == USBD_SPEED_HIGH ? "HS" : "FS");
+    USBD_LL_SetSpeed((USBD_HandleTypeDef *) hpcd->pData, speed);
+    USBD_LL_Reset((USBD_HandleTypeDef *) hpcd->pData);
 }
 
 /**
@@ -167,17 +165,17 @@ static void PCD_SuspendCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_SuspendCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
-  /* Inform USB library that core enters in suspend Mode. */
-  USBD_LL_Suspend((USBD_HandleTypeDef*)hpcd->pData);
-  __HAL_PCD_GATE_PHYCLOCK(hpcd);
-  /* Enter in STOP mode. */
-  /* USER CODE BEGIN 2 */
-  if (hpcd->Init.low_power_enable)
-  {
-    /* Set SLEEPDEEP bit and SleepOnExit of Cortex System Control Register. */
-    SCB->SCR |= (uint32_t)((uint32_t)(SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk));
-  }
-  /* USER CODE END 2 */
+    LOG_INFO("USB suspend");
+    USBD_LL_Suspend((USBD_HandleTypeDef*)hpcd->pData);
+    __HAL_PCD_GATE_PHYCLOCK(hpcd);
+    /* Enter in STOP mode. */
+    /* USER CODE BEGIN 2 */
+    if (hpcd->Init.low_power_enable)
+    {
+      /* Set SLEEPDEEP bit and SleepOnExit of Cortex System Control Register. */
+      SCB->SCR |= (uint32_t)((uint32_t)(SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk));
+    }
+    /* USER CODE END 2 */
 }
 
 /**
@@ -192,10 +190,8 @@ static void PCD_ResumeCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_ResumeCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
-  /* USER CODE BEGIN 3 */
-
-  /* USER CODE END 3 */
-  USBD_LL_Resume((USBD_HandleTypeDef*)hpcd->pData);
+    LOG_INFO("USB resume");
+    USBD_LL_Resume((USBD_HandleTypeDef*)hpcd->pData);
 }
 
 /**
@@ -239,7 +235,8 @@ static void PCD_ConnectCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_ConnectCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
-  USBD_LL_DevConnected((USBD_HandleTypeDef*)hpcd->pData);
+    LOG_INFO("USB connected");
+    USBD_LL_DevConnected((USBD_HandleTypeDef*)hpcd->pData);
 }
 
 /**
@@ -253,7 +250,8 @@ static void PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
-  USBD_LL_DevDisconnected((USBD_HandleTypeDef*)hpcd->pData);
+    LOG_INFO("USB disconnected");
+    USBD_LL_DevDisconnected((USBD_HandleTypeDef*)hpcd->pData);
 }
 
 /*******************************************************************************
@@ -564,25 +562,27 @@ void USBD_LL_Delay(uint32_t Delay)
   */
 USBD_StatusTypeDef USBD_Get_USB_Status(HAL_StatusTypeDef hal_status)
 {
-  USBD_StatusTypeDef usb_status = USBD_OK;
-
-  switch (hal_status)
-  {
-    case HAL_OK :
-      usb_status = USBD_OK;
-    break;
-    case HAL_ERROR :
-      usb_status = USBD_FAIL;
-    break;
-    case HAL_BUSY :
-      usb_status = USBD_BUSY;
-    break;
-    case HAL_TIMEOUT :
-      usb_status = USBD_FAIL;
-    break;
-    default :
-      usb_status = USBD_FAIL;
-    break;
-  }
-  return usb_status;
+    USBD_StatusTypeDef usb_status = USBD_OK;
+    switch (hal_status)
+    {
+        case HAL_OK:
+            usb_status = USBD_OK;
+            break;
+        case HAL_BUSY:
+            usb_status = USBD_BUSY;
+            break;
+        case HAL_ERROR:
+            LOG_ERR("USB HAL_ERROR");
+            usb_status = USBD_FAIL;
+            break;
+        case HAL_TIMEOUT:
+            LOG_ERR("USB HAL_TIMEOUT");
+            usb_status = USBD_FAIL;
+            break;
+        default:
+            LOG_ERR("USB unknown HAL status %d", hal_status);
+            usb_status = USBD_FAIL;
+            break;
+    }
+    return usb_status;
 }

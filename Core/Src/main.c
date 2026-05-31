@@ -26,6 +26,7 @@
 #include "usbd_conf.h"
 #include "ak4490r.h"
 #include "SEGGER_RTT.h"
+#include "log.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -127,10 +128,8 @@ void Error_cancel_nonBlocking(errorNbr errorBit_nBr)
 void Error_Handler_nonBlocking(char *errorStr, errorNbr errorBit_nBr)
 {
     errors_mask |= 1 << errorBit_nBr;
-    /* USER CODE BEGIN Error_Handler_Debug */
+    LOG_ERR("%s (bit %u)", errorStr ? errorStr : "?", (unsigned)errorBit_nBr);
     LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
-
-    /* USER CODE END Error_Handler_Debug */
 }
 
 /* USER CODE END 0 */
@@ -177,19 +176,27 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   SEGGER_RTT_Init();
-  SEGGER_RTT_WriteString(0, "Brix'Amp Boot OK\r\n");
-  LOG_INFO("Log's activated");
 
-  LL_GPIO_SetOutputPin(ANALOG_ON_GPIO_Port,ANALOG_ON_Pin);
-  HAL_Delay(100); // osDelay works also here
-  LL_GPIO_ResetOutputPin(PDN_GPIO_Port,PDN_Pin);
-  LL_GPIO_ResetOutputPin(MUX_EN_GPIO_Port,MUX_EN_Pin);
-  LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port,MUX_SEL_Pin);
+
+  LOG_INFO("=== BriXamp boot, sysclk=%lu Hz ===", (unsigned long)SystemCoreClock);
+
+
+
+
+
+
+
+  LL_GPIO_SetOutputPin(ANALOG_ON_GPIO_Port, ANALOG_ON_Pin);
+  HAL_Delay(100);
+  LL_GPIO_ResetOutputPin(PDN_GPIO_Port, PDN_Pin);
+  LL_GPIO_ResetOutputPin(MUX_EN_GPIO_Port, MUX_EN_Pin);
+  LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port, MUX_SEL_Pin);
   AK4490R_ProcessEvents(); // Call it one time to init values, before starting usb.
   MX_USB_DEVICE_Init();
+  LOG_INFO("USB device init done");
   LL_TIM_EnableIT_UPDATE(TIM3);
   LL_TIM_EnableCounter(TIM3);
-  
+
 
 
   /* USER CODE END 2 */
@@ -949,6 +956,7 @@ void StartOnOff(void const *argument)
         osDelay(100);
         if (CommandeAmp && !EtatAmp)
         {
+            LOG_INFO("amp power ON sequence");
             __HAL_TIM_SET_COUNTER(&htim4, 127); // on reinit l'encoder pour ne pas compter les crans lorsque Amp off
             // start Amp left& right
             LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
@@ -964,9 +972,11 @@ void StartOnOff(void const *argument)
             LL_GPIO_SetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
             // LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
             EtatAmp = true;
+            LOG_INFO("amp ON");
         }
         if (!CommandeAmp && EtatAmp)
         {
+            LOG_INFO("amp power OFF sequence");
             EtatAmp = false;
             AK4490R_DAC_SetMute_Force();
 
@@ -980,6 +990,7 @@ void StartOnOff(void const *argument)
             LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
             LL_GPIO_ResetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
             LL_GPIO_ResetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
+            LOG_INFO("amp OFF");
         }
     }
     /* USER CODE END StartOnOff */
@@ -1010,12 +1021,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   * @brief  This function is executed in case of error occurrence.
   * @retval None
   */
-void Error_Handler(void)
+void Error_Handler_str(const char *where)
 {
-  /* USER CODE BEGIN Error_Handler_Debug */
+    LOG_ERR("Error_Handler from %s", where ? where : "?");
     LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
 
-  /* USER CODE END Error_Handler_Debug */
+    /* Give RTT a moment to drain before any further action.
+     * In normal flow Error_Handler is fatal-ish; if you ever
+     * add a reset/halt here, the delay ensures the log gets out. */
+    for (volatile uint32_t i = 0; i < 100000; i++) { __NOP(); }
 }
 
 #ifdef  USE_FULL_ASSERT

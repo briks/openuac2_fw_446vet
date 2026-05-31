@@ -2,6 +2,8 @@
 #include "usbd_audio_if.h"
 #include "main.h"
 #include "cmsis_os.h"
+#define LOG_LOCAL_LEVEL LOG_LEVEL_DBG
+#include "log.h"
 
 //#define MAX_RECEIVED_VOLUME 100 // Max value send by the driver, assuming the min is 0
 #define MAX_ATTENUATION     64  // in dB, knowing that the step is 0.5dB in the register, max 127.5, so max 127 here.
@@ -37,8 +39,10 @@ AUDIO_CodecTypeDef ak4490r_instance =
 
 uint8_t AK4490R_DAC_Init()
 {
-	LL_GPIO_ResetOutputPin(PDN_GPIO_Port, PDN_Pin);
+    LOG_INFO("DAC init");
     HAL_Delay(10); // called from interrupt, osDelay not allowed
+
+    LL_GPIO_ResetOutputPin(PDN_GPIO_Port, PDN_Pin);
     LL_GPIO_SetOutputPin(PDN_GPIO_Port, PDN_Pin);
     HAL_Delay(100); // Delay in interrupt, not so good
     //reg1 input selection: set 32bits data default and i2s 1100 set to i2s input (no auto detect) 0000
@@ -51,11 +55,26 @@ uint8_t AK4490R_DAC_Init()
 	registre = 0xf0;
 	//HAL_I2C_Mem_Write_IT(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, 0x00, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, sizeof(registre));
 
-	//reg14 normal operation b10001010 
-	registre = 0x8a;
     HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&regread, sizeof(regread), TIMEOUT_I2C_DELAY);
-    HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&registre, sizeof(registre), TIMEOUT_I2C_DELAY);
+    LOG_DBG("reg14 before write: 0x%02X", regread);
+	//reg14 normal operation b10001010
+    // 0x8A with reserved bits at defaults:
+    //   bit 7 = 0 (normal operation)
+    //   [6:5] = 00 (reserved default)
+    //   bit 4 = 0 (reserved default)
+    //   bit 3 = 0 (reserved default)
+    //   bit 2 = 0 (reserved default)
+    //   [1:0] = 10 (normal operation)
+    // = 0000 1010 = 0x0A
+    registre = 0x0A;
+    st = HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR,
+                           I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
+    if (st != HAL_OK) {
+        LOG_ERR("DAC init: REG14 write failed (st=%d)", st);
+    }
     HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG14_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&regread, sizeof(regread), TIMEOUT_I2C_DELAY);
+    LOG_DBG("reg14 after write: 0x%02X", regread);
+
 
     //reg1 input selection: set 32bits data default and i2s 1100 set to i2s input (no auto detect) 0000
 	registre = 0xcc;
@@ -82,8 +101,15 @@ uint8_t AK4490R_DAC_Init()
     //   [1:0] = 00 (no 18dB gain)
     // = 1011 1100 = 0xBC
     registre = 0xBC;
-    HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG27_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t *)&registre, sizeof(registre), TIMEOUT_I2C_DELAY);
-    AK4490R_DAC_SetMute_Force(); // startup muted, waiting for amp power ON, even if windows starts unmuted
+    st = HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG27_ADDR,
+                           I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
+    if (st != HAL_OK) {
+        LOG_ERR("DAC init: REG27 write failed (st=%d)", st);
+    }
+
+    AK4490R_DAC_SetMute_Force();  // startup muted, waiting for amp power ON, even if windows starts
+                                  // unmuted
+    LOG_INFO("DAC init done");
     return 0;
 }
 
@@ -113,26 +139,20 @@ uint8_t AK4490R_DAC_SetMute(uint8_t mute) // mute = 1 when mute is requested
 HAL_StatusTypeDef AK4490R_DAC_SetMute_Immediate(uint8_t mute) // mute = 1 when mute is requested
 {
     HAL_StatusTypeDef I2C_Status = HAL_OK;
+    registre = mute ? 0x81 : 0x80;
 
-    // reg7 filter bw and system mute: set the mute b10000001 or normal b10000000
-    if (mute)
-    { // Mute
-        registre = 0x81;
-    }
-    else
-    { // unmute 
-        registre = 0x80;
-    }
-
-    do{
-        I2C_Status = HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG7_ADDR,
-                                       I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
-        if (I2C_Status == HAL_BUSY)
-        {
-            osDelay(1); // leave time to other task to free I2C
+    do {
+        I2C_Status = HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR,
+                                       AK4490R_REG7_ADDR, I2C_MEMADD_SIZE_8BIT,
+                                       &registre, 1, TIMEOUT_I2C_DELAY);
+        if (I2C_Status == HAL_BUSY) {
+            osDelay(1);
         }
     } while (I2C_Status == HAL_BUSY);
-    
+
+    if (I2C_Status != HAL_OK) {
+        LOG_ERR("mute %s write failed (st=%d)", mute ? "ON" : "OFF", I2C_Status);
+    }
     return I2C_Status;
 }
 
@@ -191,17 +211,34 @@ void AK4490R_ProcessEvents()
     */
     cnt++;
     if (cnt % 10 == 0)
-    { // Do the check only once on 10
-        I2C_Status |= HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG96_ADDR, I2C_MEMADD_SIZE_8BIT, &status_register, 1, TIMEOUT_I2C_DELAY);
+    {// Do the check only once out of 10
+        uint8_t prev_status = status_register;
+        I2C_Status |= HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE,
+                                       AK4490R_I2C_DEV_ADDR,
+                                       AK4490R_REG96_ADDR,
+                                       I2C_MEMADD_SIZE_8BIT,
+                                       &status_register,
+                                       1,
+                                       TIMEOUT_I2C_DELAY);
         if (I2C_Status != HAL_OK)
         {
             Error_Handler_nonBlocking("I2C read failure", ERROR_I2C);
             MX_I2C1_Init();
-            I2C_Status = HAL_OK; // reinit to see if better after init
+            I2C_Status = HAL_OK;  // reinit to see if better after init
         }
         else
         {
             Error_cancel_nonBlocking(ERROR_I2C);
+            if (status_register != prev_status)
+            {
+                LOG_DBG("DAC status 0x%02X → 0x%02X (dop=%d spdif=%d i2s=%d dsd=%d)",
+                        prev_status,
+                        status_register,
+                        !!(status_register & 0x08),
+                        !!(status_register & 0x04),
+                        !!(status_register & 0x02),
+                        !!(status_register & 0x01));
+            }
         }
     }
 
@@ -225,15 +262,17 @@ void AK4490R_ProcessEvents()
             && (EtatAmp) )
         {
             configured_mute = requested_mute;
-            if (configured_mute)
-            {// Mute
-                I2C_Status |= AK4490R_DAC_SetMute_Immediate(true);
-            }
-            else
-            {// Unmute
-                I2C_Status |= AK4490R_DAC_SetMute_Immediate(false);
-            }
+            I2C_Status |= AK4490R_DAC_SetMute_Immediate(configured_mute);
+            LOG_INFO("mute %s", configured_mute ? "ON" : "OFF");
             USBD_AUDIO_signal_mute_change();
+        } else {
+            /* don't spam: log only once per change */
+            static bool warned = false;
+            if (!warned) {
+                LOG_WARN("mute change deferred (i2c_state=%d amp=%d)",
+                         AK4490R_I2C_HANDLE.State, EtatAmp);
+                warned = true;
+            }
         }
     }
 
@@ -243,8 +282,9 @@ void AK4490R_ProcessEvents()
         // Set by default in auto mode, see AK4490R_REG1_ADDR:auto_select
         // if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
         // {
-        //     HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG7_ADDR, I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
-        //     if (configured_format == AUDIO_FORMAT_DSD)
+        //     HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG7_ADDR,
+        //     I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY); if (configured_format ==
+        //     AUDIO_FORMAT_DSD)
         //     {
         //         registre |= AK4490R_DP;
         //     }
@@ -254,24 +294,31 @@ void AK4490R_ProcessEvents()
         //     }
 
         //     //		reg.control1 &= ~AK4490R_RSTN;
-        //     HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_CONTROL3_ADDR, I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
+        //     HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_CONTROL3_ADDR,
+        //     I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
         //     //		reg_reset = 1;
         // }
+        LOG_INFO("audio format → %s",
+                 configured_format == AUDIO_FORMAT_DSD ? "DSD" : "PCM");
     }
 
     if (requested_volume != configured_volume)
-    { // adjust volume
+    {  // adjust volume
         if (AK4490R_I2C_HANDLE.State == HAL_I2C_STATE_READY)
         {
             configured_volume = requested_volume;
             // uint32_t vol = MAX_RECEIVED_VOLUME - (uint32_t)configured_volume;
-            // uint8_t configured_attenuation = (vol * vol) * MAX_ATTENUATION * 2 / (MAX_RECEIVED_VOLUME * MAX_RECEIVED_VOLUME); // attenuation in range 0-255
+            // uint8_t configured_attenuation = (vol * vol) * MAX_ATTENUATION * 2 /
+            // (MAX_RECEIVED_VOLUME * MAX_RECEIVED_VOLUME); // attenuation in range 0-255
             // // Write an attenuation in the register in range 0-255
-            // I2C_Status |= HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
+            // I2C_Status |= HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR,
+            // AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
             //                                 &configured_attenuation, 1, TIMEOUT_I2C_DELAY);
             // not needed to update volume2, see AK4490R_REG27_ADDR configuration (ch1_volume)
-            // HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG16_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, TIMEOUT_I2C_DELAY);
-            // HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, TIMEOUT_I2C_DELAY );
+            // HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG16_ADDR,
+            // I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, TIMEOUT_I2C_DELAY);
+            // HAL_I2C_Mem_Read(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR,
+            // I2C_MEMADD_SIZE_8BIT, (uint8_t*)&registre, 1, TIMEOUT_I2C_DELAY );
 
             /* replace the quadratic mapping with a linear dB→register conversion. */
             /* configured_volume is signed Q8.8 dB, range [AUDIO_MIN_VOL .. AUDIO_MAX_VOL]
@@ -279,7 +326,7 @@ void AK4490R_ProcessEvents()
              * ES9038Q2M REG15 attenuation = -0.5 dB per step.
              * register_value = -2 * dB = -2 * (q88 / 256) = -q88 / 128
              */
-            int32_t attenuation = -((int32_t) configured_volume) / 128; /* 0..120 for -60..0 dB */
+            int32_t attenuation = -((int32_t) configured_volume) / 128;
             if (attenuation < 0)
             {
                 attenuation = 0;
@@ -288,11 +335,32 @@ void AK4490R_ProcessEvents()
             {
                 attenuation = 255;
             }
+
             uint8_t reg_val = (uint8_t) attenuation;
 
-            I2C_Status |= HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE, AK4490R_I2C_DEV_ADDR, AK4490R_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
-                                            &reg_val, 1, TIMEOUT_I2C_DELAY);
+            HAL_StatusTypeDef st = HAL_I2C_Mem_Write(&AK4490R_I2C_HANDLE,
+                                                     AK4490R_I2C_DEV_ADDR,
+                                                     AK4490R_REG15_ADDR,
+                                                     I2C_MEMADD_SIZE_8BIT,
+                                                     &reg_val,
+                                                     1,
+                                                     TIMEOUT_I2C_DELAY);
+            if (st != HAL_OK)
+            {
+                LOG_ERR("volume write failed (vol=%d att=%u st=%d)",
+                        configured_volume,
+                        reg_val,
+                        st);
+            }
+            else
+            {
+                /* Volume in 0.5 dB units: Q8.8 dB / 128 = dB * 2 */
+                int dB_x10 = (int) configured_volume * 10 / 256;
+                LOG_INFO("volume %d.%d dB (att=0x%02X)",
+                         dB_x10 / 10,
+                         (dB_x10 < 0 ? -dB_x10 : dB_x10) % 10,
+                         reg_val);
+            }
         }
     }
-
 }

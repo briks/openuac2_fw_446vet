@@ -13,6 +13,8 @@ target_compile_definitions(
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:STM32F446xx>"
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:USE_FULL_LL_DRIVER>"
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:USE_HAL_DRIVER>"
+    $<$<CONFIG:Debug>:LOG_LEVEL=3>
+    $<$<NOT:$<CONFIG:Debug>>:LOG_LEVEL=2>
 )
 
 target_include_directories(
