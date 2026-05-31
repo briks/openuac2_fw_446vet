@@ -273,19 +273,18 @@ const uint8_t USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZE] __attribute__((alig
 };
 
 /* USB Standard Device Descriptor */
-const uint8_t USBD_AUDIO_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC] __attribute__ ((aligned (4))) =
-{
-  USB_LEN_DEV_QUALIFIER_DESC,			// bLength
-  USB_DESC_TYPE_DEVICE_QUALIFIER,	// bDescriptorType
-  0x00,														// bcdUSB
-	0x02,
+const uint8_t USBD_AUDIO_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC] __attribute__((aligned(4))) =
+    {
+        USB_LEN_DEV_QUALIFIER_DESC,     // bLength
+        USB_DESC_TYPE_DEVICE_QUALIFIER, // bDescriptorType
+        0x00, 0x02,                     // bcdUSB usb version number
+        
+        // See Audio20 section 4.3
+        0xef, // bDeviceClass
+        0x02, // bDeviceSubClass
+        0x01, // bDeviceProtocol
 
-	// See Audio20 section 4.3
-  0xef,														// bDeviceClass
-  0x02,														// bDeviceSubClass
-  0x01,														// bDeviceProtocol
-
-  USB_MAX_EP0_SIZE,								// bMaxPacketSize0
-  0x00,
-  0x00,
+        USB_MAX_EP0_SIZE, // bMaxPacketSize0 for other speed
+        0x00,             // Nbr of other speed config
+        0x00,             // 0
 };

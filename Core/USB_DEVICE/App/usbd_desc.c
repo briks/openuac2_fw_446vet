@@ -62,15 +62,15 @@
   * @{
   */
 
-#define USBD_VID     									1155
-#define USBD_LANGID_STRING     				1033
-#define USBD_MANUFACTURER_STRING     	"__BriKs__"
-#define USBD_PID_HS     							0x5730
-#define USBD_PRODUCT_STRING_HS     		"BriXamp!"
-#define USBD_CONFIGURATION_STRING_HS  "AUDIO Config"
-#define USBD_INTERFACE_STRING_HS     	"AUDIO Interface"
+#define USBD_VID                    0x0483 // 1155
+#define USBD_LANGID_STRING          1033 
+#define USBD_MANUFACTURER_STRING    "__BriKs__" // see USBD_IDX_MFC_STR
+#define USBD_PID_HS                 0x5730 // 22320
+#define USBD_PRODUCT_STRING_HS      "BriXamp!" // see USBD_IDX_PRODUCT_STR
+#define USBD_CONFIGURATION_STRING_HS "AUDIO Config" // see USBD_IDX_CONFIG_STR
+#define USBD_INTERFACE_STRING_HS    "AUDIO Interface"  // see USBD_IDX_INTERFACE_STR
 
-#define USB_SIZ_BOS_DESC            	0x0C
+#define USB_SIZ_BOS_DESC 0x0C
 
 /* USER CODE BEGIN PRIVATE_DEFINES */
 
@@ -149,39 +149,36 @@ USBD_DescriptorsTypeDef HS_Desc =
 #endif /* (USBD_LPM_ENABLED == 1) */
 };
 
-#if defined ( __ICCARM__ ) /* IAR Compiler */
-  #pragma data_alignment=4
+#if defined(__ICCARM__) /* IAR Compiler */
+#pragma data_alignment = 4
 #endif /* defined ( __ICCARM__ ) */
 /** USB standard device descriptor. */
 __ALIGN_BEGIN uint8_t USBD_HS_DeviceDesc[USB_LEN_DEV_DESC] __ALIGN_END =
-{
-  0x12,                       /*bLength */
-  USB_DESC_TYPE_DEVICE,       /*bDescriptorType*/
+    {
+        0x12,                 /*bLength */
+        USB_DESC_TYPE_DEVICE, /*bDescriptorType*/
 #if (USBD_LPM_ENABLED == 1)
-  0x01,                       /*bcdUSB */ /* changed to USB version 2.01
-                                             in order to support LPM L1 suspend
-                                             resume test of USBCV3.0*/
+        0x01, 0x02, /*bcdUSB */ /* changed to USB version 2.01 in order to support LPM L1 suspend resume test of USBCV3.0*/
 #else
-  0x00,                       /*bcdUSB */
+        0x00, 0x02, /*bcdUSB */
 #endif /* (USBD_LPM_ENABLED == 1) */
 
-  0x02,
-	// See Audio20 section 4.2
-  0xef,                       /*bDeviceClass*/
-  0x02,                       /*bDeviceSubClass*/
-  0x01,                       /*bDeviceProtocol*/
+        // See Audio20 section 4.2
+        0x01, /*bDeviceClass*/
+        0x02, /*bDeviceSubClass*/
+        0x20, /*bDeviceProtocol*/
 
-  USB_MAX_EP0_SIZE,           /*bMaxPacketSize*/
-  LOBYTE(USBD_VID),           /*idVendor*/
-  HIBYTE(USBD_VID),           /*idVendor*/
-  LOBYTE(USBD_PID_HS),        /*idProduct*/
-  HIBYTE(USBD_PID_HS),        /*idProduct*/
-  0x00,                       /*bcdDevice rel. 2.00*/
-  0x02,
-  USBD_IDX_MFC_STR,           /*Index of manufacturer  string*/
-  USBD_IDX_PRODUCT_STR,       /*Index of product string*/
-  USBD_IDX_SERIAL_STR,        /*Index of serial number string*/
-  USBD_MAX_NUM_CONFIGURATION  /*bNumConfigurations*/
+        USB_MAX_EP0_SIZE,    /*bMaxPacketSize*/
+        LOBYTE(USBD_VID),    /*idVendor*/
+        HIBYTE(USBD_VID),    /*idVendor*/
+        LOBYTE(USBD_PID_HS), /*idProduct*/
+        HIBYTE(USBD_PID_HS), /*idProduct*/
+        0x00,                /*bcdDevice rel. 2.00*/
+        0x02,
+        USBD_IDX_MFC_STR,          /*Index of manufacturer  string*/
+        USBD_IDX_PRODUCT_STR,      /*Index of product string*/
+        USBD_IDX_SERIAL_STR,       /*Index of serial number string*/
+        USBD_MAX_NUM_CONFIGURATION /*bNumConfigurations*/
 };
 
 /** BOS descriptor. */
@@ -239,9 +236,9 @@ __ALIGN_BEGIN uint8_t USBD_StrDesc[USBD_MAX_STR_DESC_SIZ] __ALIGN_END;
   #pragma data_alignment=4
 #endif
 __ALIGN_BEGIN uint8_t USBD_StringSerial[USB_SIZ_STRING_SERIAL] __ALIGN_END = {
-  USB_SIZ_STRING_SERIAL,
-  USB_DESC_TYPE_STRING,
-};
+    USB_SIZ_STRING_SERIAL,
+    USB_DESC_TYPE_STRING,
+}; // see USBD_IDX_SERIAL_STR
 
 /**
   * @}
