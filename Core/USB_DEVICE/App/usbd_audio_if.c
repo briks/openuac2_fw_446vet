@@ -74,32 +74,58 @@ static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 
   switch (cmd)
   {
-	case AUDIO_CMD_PLAY:
-        if (codec->DAC_Format != NULL)
-        {
-            codec->DAC_Format(AUDIO_FORMAT_PCM);
-        }
-        if (codec->DAC_Play != NULL)
-        {
-            codec->DAC_Play();
-        }
-		HAL_I2S_Transmit_DMA(&AUDIO_I2S_MSTR_HANDLE, (uint16_t*)aud_buf->mem, aud_buf->capacity >> 2);
-		LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
-		break;
-
 	case AUDIO_CMD_FORMAT:
         if (codec->DAC_Format != NULL)
         {
-            codec->DAC_Format(*pbuf);
-        }
+		codec->DAC_Format(*pbuf);
+		}
+		/* Format change: tear down current I2S, reconfigure clocks/GPIOs.
+		* DMA will be (re)started by PLAY, or here if we're already playing. */
+		HAL_I2S_DMAStop(&AUDIO_I2S_MSTR_HANDLE);
+		HAL_I2S_DMAStop(&AUDIO_I2S_SLAVE_HANDLE);
+
 		if (*pbuf == AUDIO_FORMAT_DSD)
 		{
-			HAL_I2S_DMAStop(&AUDIO_I2S_MSTR_HANDLE);
 			RCC_I2S_SetFreq(haudio->sam_freq >> 2);
-			HAL_I2S_Transmit_DMA(&AUDIO_I2S_SLAVE_HANDLE, (uint16_t*)&aud_buf->mem[aud_buf->capacity], aud_buf->capacity >> 2);
-			HAL_I2S_Transmit_DMA(&AUDIO_I2S_MSTR_HANDLE, (uint16_t*)aud_buf->mem, aud_buf->capacity >> 2);
 			LL_GPIO_SetOutputPin(DSDOE_GPIO_Port, DSDOE_Pin);
 		}
+		else  /* AUDIO_FORMAT_PCM */
+		{
+			LL_GPIO_ResetOutputPin(DSDOE_GPIO_Port, DSDOE_Pin);
+			RCC_I2S_SetFreq(haudio->sam_freq);
+		}
+
+		/* If already playing, restart DMA in the new format. */
+		if (haudio->state == AUDIO_STATE_PLAYING)
+		{
+			if (*pbuf == AUDIO_FORMAT_DSD)
+			{
+				HAL_I2S_Transmit_DMA(&AUDIO_I2S_SLAVE_HANDLE,
+									(uint16_t*)&aud_buf->mem[aud_buf->capacity],
+									aud_buf->capacity >> 2);
+			}
+			HAL_I2S_Transmit_DMA(&AUDIO_I2S_MSTR_HANDLE,
+								(uint16_t*)aud_buf->mem,
+								aud_buf->capacity >> 2);
+		}
+		break;
+
+	case AUDIO_CMD_PLAY:
+		if (codec->DAC_Play != NULL)
+		{
+			codec->DAC_Play();
+		}
+		/* Start DMA according to current stream type. */
+		if (haudio->stream_type == AUDIO_FORMAT_DSD)
+		{
+			HAL_I2S_Transmit_DMA(&AUDIO_I2S_SLAVE_HANDLE,
+								(uint16_t*)&aud_buf->mem[aud_buf->capacity],
+								aud_buf->capacity >> 2);
+		}
+		HAL_I2S_Transmit_DMA(&AUDIO_I2S_MSTR_HANDLE,
+							(uint16_t*)aud_buf->mem,
+							aud_buf->capacity >> 2);
+		LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
 		break;
 
 	case AUDIO_CMD_STOP:
@@ -107,9 +133,9 @@ static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
         {
             codec->DAC_Stop();
         }
-		//HAL_I2S_DMAStop(&AUDIO_I2S_SLAVE_HANDLE);
 		HAL_I2S_DMAStop(&AUDIO_I2S_MSTR_HANDLE);
-//		HAL_DMA_Start_IT(&hdma_memtomem_dma2_stream0, (uint32_t)&zero, (uint32_t)aud_buf->mem, aud_buf->capacity >> 1);
+		HAL_I2S_DMAStop(&AUDIO_I2S_SLAVE_HANDLE);   /* harmless if not running */
+		LL_GPIO_ResetOutputPin(DSDOE_GPIO_Port, DSDOE_Pin);
 		LL_GPIO_SetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
 		LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
 		LL_GPIO_ResetOutputPin(DSDOE_GPIO_Port, DSDOE_Pin);
