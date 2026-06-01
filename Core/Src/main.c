@@ -26,6 +26,7 @@
 #include "usbd_conf.h"
 #include "es9038q2m.h"
 #include "SEGGER_RTT.h"
+#define LOG_LEVEL LOG_LEVEL_INFO
 #include "log.h"
 /* USER CODE END Includes */
 
@@ -62,19 +63,24 @@ PCD_HandleTypeDef hpcd_USB_OTG_HS;
 DMA_HandleTypeDef hdma_memtomem_dma2_stream0;
 DMA_HandleTypeDef hdma_memtomem_dma2_stream1;
 osThreadId defaultTaskHandle;
-uint32_t defaultTaskBuffer[ 64 ];
+#define defaultTaskBufferSize 2048
+uint32_t defaultTaskBuffer[defaultTaskBufferSize / sizeof(uint32_t)];
 osStaticThreadDef_t defaultTaskControlBlock;
 osThreadId VolumeHandle;
-uint32_t VolumeBuffer[ 64 ];
+#define VolumeBufferSize 256
+uint32_t VolumeBuffer[VolumeBufferSize / sizeof(uint32_t)];
 osStaticThreadDef_t VolumeControlBlock;
 osThreadId LedsHandle;
-uint32_t LedsBuffer[ 64 ];
+#define LedsBufferSize 256
+uint32_t LedsBuffer[LedsBufferSize / sizeof(uint32_t)];
 osStaticThreadDef_t LedsControlBlock;
 osThreadId SourceHandle;
-uint32_t SourceBuffer[ 64 ];
+#define SourceBufferSize 256
+uint32_t SourceBuffer[SourceBufferSize / sizeof(uint32_t)];
 osStaticThreadDef_t SourceControlBlock;
 osThreadId OnOffHandle;
-uint32_t OnOffBuffer[ 64 ];
+#define OnOffBufferSize 1024
+uint32_t OnOffBuffer[OnOffBufferSize / sizeof(uint32_t)];
 osStaticThreadDef_t OnOffControlBlock;
 /* USER CODE BEGIN PV */
 uint32_t errors_mask = 0;
@@ -219,23 +225,23 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask  */
-  osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 64, defaultTaskBuffer, &defaultTaskControlBlock);
+  osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, defaultTaskBufferSize / sizeof(uint32_t), defaultTaskBuffer, &defaultTaskControlBlock);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* definition and creation of Volume */
-  osThreadStaticDef(Volume, StartVolume, osPriorityNormal, 0, 64, VolumeBuffer, &VolumeControlBlock);
+  osThreadStaticDef(Volume, StartVolume, osPriorityNormal, 0, VolumeBufferSize / sizeof(uint32_t), VolumeBuffer, &VolumeControlBlock);
   VolumeHandle = osThreadCreate(osThread(Volume), NULL);
 
   /* definition and creation of Leds */
-  osThreadStaticDef(Leds, StartLeds, osPriorityNormal, 0, 64, LedsBuffer, &LedsControlBlock);
+  osThreadStaticDef(Leds, StartLeds, osPriorityNormal, 0, LedsBufferSize / sizeof(uint32_t), LedsBuffer, &LedsControlBlock);
   LedsHandle = osThreadCreate(osThread(Leds), NULL);
 
   /* definition and creation of Source */
-  osThreadStaticDef(Source, StartSource, osPriorityNormal, 0, 64, SourceBuffer, &SourceControlBlock);
+  osThreadStaticDef(Source, StartSource, osPriorityNormal, 0, SourceBufferSize / sizeof(uint32_t), SourceBuffer, &SourceControlBlock);
   SourceHandle = osThreadCreate(osThread(Source), NULL);
 
   /* definition and creation of OnOff, prio higher than StartDefaultTask source to handle I2C mute request */
-  osThreadStaticDef(OnOff, StartOnOff, osPriorityAboveNormal, 0, 64, OnOffBuffer, &OnOffControlBlock);
+  osThreadStaticDef(OnOff, StartOnOff, osPriorityAboveNormal, 0, OnOffBufferSize / sizeof(uint32_t), OnOffBuffer, &OnOffControlBlock);
   OnOffHandle = osThreadCreate(osThread(OnOff), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */

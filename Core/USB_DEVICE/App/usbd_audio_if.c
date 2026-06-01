@@ -2,6 +2,7 @@
 #include "usbd_audio_if.h"
 #include "main.h"
 #include "usb_device.h"
+#define LOG_LEVEL LOG_LEVEL_INFO
 #include "log.h"
 
 

@@ -17,7 +17,7 @@
 #define LOG_LEVEL_DBG  3
 
 #ifndef LOG_LEVEL
-#define LOG_LEVEL LOG_LEVEL_DBG
+#define LOG_LEVEL LOG_LEVEL_ERR
 #endif
 
 static inline void _log_ts(uint32_t *sec, uint32_t *ms) {

@@ -1,5 +1,6 @@
 #include "audio_buffer.h"
 #include "usbd_audio.h"
+#define LOG_LEVEL LOG_LEVEL_INFO
 #include "log.h"
 
 __attribute__ ((aligned (4))) static uint8_t s_AudBufMem[AUDIO_BUF_SIZE];

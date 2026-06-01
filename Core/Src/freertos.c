@@ -21,6 +21,8 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "main.h"
+#define LOG_LEVEL LOG_LEVEL_INFO
+#include "log.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -82,6 +84,7 @@ __weak void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTask
    /* Run time stack overflow checking is performed if
    configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2. This hook function is
    called if a stack overflow is detected. */
+   LOG_ERR("Stack overflow in task %s", pcTaskName);
     Error_Handler();
 }
 /* USER CODE END 4 */

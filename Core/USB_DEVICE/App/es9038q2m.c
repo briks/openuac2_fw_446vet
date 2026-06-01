@@ -1,6 +1,7 @@
 #include "es9038q2m.h"
 #include "main.h"
 #include "cmsis_os.h"
+#define LOG_LEVEL LOG_LEVEL_INFO
 #include "log.h"
 
 #define TIMEOUT_I2C_DELAY   10   /* ms; could be HAL_MAX_DELAY for infinite */

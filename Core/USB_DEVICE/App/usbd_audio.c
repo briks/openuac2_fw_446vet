@@ -6,13 +6,12 @@
 #include "audio_desc.h"
 #include "es9038q2m.h"
 #include "usb_device.h"
-#include "log.h"
 
 #ifdef USE_USBD_COMPOSITE
 #error "Composite device is unsupported."
 #endif
 
-#define LOG_LOCAL_LEVEL LOG_LEVEL_INFO // Set to LOG_LEVEL_DEBUG for full logs
+#define LOG_LEVEL LOG_LEVEL_INFO // Set to LOG_LEVEL_DEBUG for full logs
 #include "log.h"
 
 static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx);

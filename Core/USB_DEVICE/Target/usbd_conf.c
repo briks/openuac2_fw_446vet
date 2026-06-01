@@ -24,6 +24,7 @@
 #include "usbd_def.h"
 #include "usbd_core.h"
 #include "usbd_audio.h"
+#define LOG_LEVEL LOG_LEVEL_INFO
 #include "log.h"
 
 /* USER CODE BEGIN Includes */

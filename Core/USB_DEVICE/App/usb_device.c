@@ -21,6 +21,7 @@
 #include "usbd_desc.h"
 #include "usbd_audio.h"
 #include "usbd_audio_if.h"
+#define LOG_LEVEL LOG_LEVEL_INFO
 #include "log.h"
 
 USBD_HandleTypeDef hUsbDeviceHS;
