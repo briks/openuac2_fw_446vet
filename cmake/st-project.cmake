@@ -13,8 +13,6 @@ target_compile_definitions(
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:STM32F446xx>"
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:USE_FULL_LL_DRIVER>"
     "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<COMPILE_LANGUAGE:C>>:USE_HAL_DRIVER>"
-    $<$<CONFIG:Debug>:LOG_LEVEL=3>
-    $<$<NOT:$<CONFIG:Debug>>:LOG_LEVEL=2>
 )
 
 target_include_directories(
@@ -83,6 +81,7 @@ target_link_options(
     "$<$<NOT:$<CONFIG:Debug>>:-mcpu=cortex-m4>"
     "$<$<NOT:$<CONFIG:Debug>>:-mfpu=fpv4-sp-d16>"
     "$<$<NOT:$<CONFIG:Debug>>:-mfloat-abi=hard>"
+    "$<$<BOOL:1>:-Wl,-Map,${PROJECT_NAME}.map>"
     -T
     "$<$<CONFIG:Debug>:${PROJECT_SOURCE_DIR}/STM32F446VETX_FLASH.ld>"
     "$<$<NOT:$<CONFIG:Debug>>:${PROJECT_SOURCE_DIR}/STM32F446VETX_FLASH.ld>"

@@ -2,19 +2,22 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch",
+      "name": "J-Link BriXamp",
       "type": "cppdbg",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "program": "${command:cmake.launchTargetPath}",
+      "program": "${workspaceFolder}/build/debug/build/essais_clk.elf",
       "MIMode": "gdb",
-      "miDebuggerPath": "${command:vscode-embedded.st.gdb}",
-      "miDebuggerServerAddress": "localhost:3333",
-      "debugServerPath": "${command:vscode-embedded.st.gdbserver}",
-      "debugServerArgs": "--stm32cubeprogrammer-path ${command:vscode-embedded.st.cubeprogrammer} --swd --port-number 3333",
-      "serverStarted": "Waiting for connection on port .*\\.\\.\\.",
+      "miDebuggerPath": "C:\\ST\\STM32CubeCLT_1.15.0\\GNU-tools-for-STM32\\bin\\arm-none-eabi-gdb.exe",
+      "miDebuggerServerAddress": "localhost:2331",
+      "debugServerPath": "C:\\Program Files\\SEGGER\\JLink_V946\\JLinkGDBServerCL.exe",
+      "debugServerArgs": "-if SWD -device STM32F446VE -port 2331 -nogui",
+      "serverStarted": "Listening on TCP/IP port \\d+",
       "stopAtConnect": true,
       "postRemoteConnectCommands": [
+        {
+          "text": "monitor reset"
+        },
         {
           "text": "load build/debug/build/essais_clk.elf"
         }
@@ -23,6 +26,7 @@
         "engineLogging": true
       },
       "preLaunchTask": "Build",
+      "targetArchitecture": "arm",
       "svdPath": "${command:vscode-embedded.st.svd}/STM32F446.svd"
     }
   ]
