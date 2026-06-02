@@ -39,10 +39,10 @@ extern volatile bool es9038q2m_audio_stop_pending;
 extern const AUDIO_CodecTypeDef es9038q2m_instance;
 
 uint8_t ES9038Q2M_DAC_Init(void);
-uint8_t ES9038Q2M_DAC_SetVolume(int16_t vol);
-uint8_t ES9038Q2M_DAC_SetMute(uint8_t mute);
+uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol);
+uint8_t ES9038Q2M_DAC_Mute_set(uint8_t mute);
 void    ES9038Q2M_DAC_SetMute_Force(void);
-uint8_t ES9038Q2M_DAC_SetFormat(uint8_t format);
+uint8_t ES9038Q2M_DAC_Format_set(uint8_t format);
 uint8_t ES9038Q2M_DAC_Play(void);
 uint8_t ES9038Q2M_DAC_Stop(void);
 void    ES9038Q2M_ProcessEvents(void);

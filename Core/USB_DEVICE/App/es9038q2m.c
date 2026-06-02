@@ -10,10 +10,10 @@ extern I2C_HandleTypeDef ES9038Q2M_I2C_HANDLE;
 
 static uint8_t play;
 
-int16_t requested_volume = AUDIO_CUR_VOL;                         /* set at boot, host range */
+volatile int16_t requested_volume = AUDIO_CUR_VOL;                /* set at boot, host range */
 volatile int16_t es9038q2m_configured_volume = AUDIO_CUR_VOL + 1; /* differ → force apply on first ProcessEvents */
-bool     requested_mute    = false;                    /* unmuted when amp powers on */
-volatile bool es9038q2m_configured_mute    = false;              /* set true at init since amp is off */
+volatile bool requested_mute = false;                             /* unmuted when amp powers on */
+volatile bool es9038q2m_configured_mute = false;                  /* set true at init since amp is off */
 volatile bool es9038q2m_audio_stop_pending = false;
 
 AUDIO_FormatTypeDef requested_format  = AUDIO_FORMAT_PCM;
@@ -28,11 +28,11 @@ const AUDIO_CodecTypeDef es9038q2m_instance =
         ES9038Q2M_DAC_Init,
         NULL,
         ES9038Q2M_DAC_Play,
-        ES9038Q2M_DAC_SetFormat,
+        ES9038Q2M_DAC_Format_set,
         ES9038Q2M_DAC_Stop,
         NULL,
-        ES9038Q2M_DAC_SetMute,
-        ES9038Q2M_DAC_SetVolume};
+        ES9038Q2M_DAC_Mute_set,
+        ES9038Q2M_DAC_Volume_set};
 
 uint8_t ES9038Q2M_DAC_Init(void)
 {
@@ -67,15 +67,18 @@ uint8_t ES9038Q2M_DAC_Init(void)
     return 0;
 }
 
-uint8_t ES9038Q2M_DAC_SetVolume(int16_t vol)   /* Q8.8 dB from USB Audio class */
+uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol)   /* Q8.8 dB from USB Audio class */
 {
-    if (vol < AUDIO_MIN_VOL) vol = AUDIO_MIN_VOL;
-    if (vol > AUDIO_MAX_VOL) vol = AUDIO_MAX_VOL;
+    LOG_INFO("requested volume change: %d", vol);
+    if (vol < AUDIO_MIN_VOL)
+        vol = AUDIO_MIN_VOL;
+    if (vol > AUDIO_MAX_VOL)
+        vol = AUDIO_MAX_VOL;
     requested_volume = vol;
     return 0;
 }
 
-uint8_t ES9038Q2M_DAC_SetMute(uint8_t mute)
+uint8_t ES9038Q2M_DAC_Mute_set(uint8_t mute)
 {
     requested_mute = (mute == 1);
     return 0;
@@ -111,7 +114,7 @@ void ES9038Q2M_DAC_SetMute_Force(void)
     USBD_AUDIO_signal_mute_change();
 }
 
-uint8_t ES9038Q2M_DAC_SetFormat(uint8_t format)
+uint8_t ES9038Q2M_DAC_Format_set(uint8_t format)
 {
     requested_format = format;
     return 0;
@@ -141,44 +144,56 @@ void ES9038Q2M_ProcessEvents(void)
     static uint32_t cnt = 0;
 
     cnt++;
-    if (cnt % 10 == 0) {
-        I2C_Status |= HAL_I2C_Mem_Read(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
-                                       ES9038Q2M_REG96_ADDR, I2C_MEMADD_SIZE_8BIT,
-                                       &status_register, 1, TIMEOUT_I2C_DELAY);
-        if (I2C_Status != HAL_OK) {
+    if (cnt % 10 == 0)
+    {
+        I2C_Status = HAL_I2C_Mem_Read(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
+                                      ES9038Q2M_REG96_ADDR, I2C_MEMADD_SIZE_8BIT,
+                                      &status_register, 1, TIMEOUT_I2C_DELAY);
+        if (I2C_Status != HAL_OK)
+        {
             Error_Handler_nonBlocking("I2C read failure", ERROR_I2C);
+            HAL_I2C_DeInit(&ES9038Q2M_I2C_HANDLE);
             MX_I2C1_Init();
-            I2C_Status = HAL_OK;       /* retry after re-init */
-        } else {
+            I2C_Status = HAL_OK; /* retry after re-init */
+        }
+        else
+        {
             Error_cancel_nonBlocking(ERROR_I2C);
         }
     }
 
-    if (es9038q2m_audio_stop_pending) {
+    if (es9038q2m_audio_stop_pending)
+    {
         es9038q2m_audio_stop_pending = false;
         USBD_AUDIO_fops.AUDIO_Cmd(NULL, 0, AUDIO_CMD_STOP);
     }
 
-    if (play) {
+    if (play)
+    {
         play = 0;
     }
 
-    if (requested_mute != es9038q2m_configured_mute) {
-        if ((ES9038Q2M_I2C_HANDLE.State == HAL_I2C_STATE_READY) && EtatAmp) {
+    if (requested_mute != es9038q2m_configured_mute)
+    {
+        if ((ES9038Q2M_I2C_HANDLE.State == HAL_I2C_STATE_READY) && EtatAmp)
+        {
             es9038q2m_configured_mute = requested_mute;
             LOG_INFO("applying mute change: %d", es9038q2m_configured_mute);
-            I2C_Status |= ES9038Q2M_DAC_SetMute_Immediate(es9038q2m_configured_mute);
+            I2C_Status = ES9038Q2M_DAC_SetMute_Immediate(es9038q2m_configured_mute);
             USBD_AUDIO_signal_mute_change();
         }
     }
 
-    if (requested_format != configured_format) {
+    if (requested_format != configured_format)
+    {
         /* Format is auto-detected by ES9038 via REG1 auto_select; nothing to write. */
         configured_format = requested_format;
     }
 
-    if (requested_volume != es9038q2m_configured_volume) {
-        if (ES9038Q2M_I2C_HANDLE.State == HAL_I2C_STATE_READY) {
+    if (requested_volume != es9038q2m_configured_volume)
+    {
+        if (ES9038Q2M_I2C_HANDLE.State == HAL_I2C_STATE_READY)
+        {
             es9038q2m_configured_volume = requested_volume;
 
             /* REG15 attenuation = -0.5 dB / step.
@@ -188,14 +203,16 @@ void ES9038Q2M_ProcessEvents(void)
              * REG16 not written — REG27 ch1_volume bit makes ch2 follow ch1.
              */
             int32_t attenuation = -((int32_t)es9038q2m_configured_volume) / 128;
-            if (attenuation < 0)   attenuation = 0;
-            if (attenuation > 255) attenuation = 255;
+            if (attenuation < 0)
+                attenuation = 0;
+            if (attenuation > 255)
+                attenuation = 255;
             uint8_t reg_val = (uint8_t)attenuation;
             LOG_INFO("applying volume change: %d (attenuation=%u)", es9038q2m_configured_volume, reg_val);
 
-            I2C_Status |= HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
-                                            ES9038Q2M_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
-                                            &reg_val, 1, TIMEOUT_I2C_DELAY);
+            I2C_Status = HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
+                                           ES9038Q2M_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
+                                           &reg_val, 1, TIMEOUT_I2C_DELAY);
         }
     }
 }

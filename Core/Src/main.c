@@ -183,14 +183,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   SEGGER_RTT_Init();
 
-
-  LOG_INFO("=== BriXamp boot, sysclk=%lu Hz ===", (unsigned long)SystemCoreClock);
-
-
-
-
-
-
+  LOG_INFO("\n===== BriXamp boot, sysclk=%lu Hz ============================", (unsigned long)SystemCoreClock);
 
   LL_GPIO_SetOutputPin(ANALOG_ON_GPIO_Port, ANALOG_ON_Pin);
   HAL_Delay(100);
