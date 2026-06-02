@@ -166,6 +166,7 @@ void ES9038Q2M_ProcessEvents(void)
     if (requested_mute != es9038q2m_configured_mute) {
         if ((ES9038Q2M_I2C_HANDLE.State == HAL_I2C_STATE_READY) && EtatAmp) {
             es9038q2m_configured_mute = requested_mute;
+            LOG_INFO("applying mute change: %d", es9038q2m_configured_mute);
             I2C_Status |= ES9038Q2M_DAC_SetMute_Immediate(es9038q2m_configured_mute);
             USBD_AUDIO_signal_mute_change();
         }
@@ -190,6 +191,7 @@ void ES9038Q2M_ProcessEvents(void)
             if (attenuation < 0)   attenuation = 0;
             if (attenuation > 255) attenuation = 255;
             uint8_t reg_val = (uint8_t)attenuation;
+            LOG_INFO("applying volume change: %d (attenuation=%u)", es9038q2m_configured_volume, reg_val);
 
             I2C_Status |= HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
                                             ES9038Q2M_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,

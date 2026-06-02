@@ -77,6 +77,7 @@ void USBD_AUDIO_signal_mute_change(void)
     {
         LOG_WARN("interrupt EP busy on mute signal (host will resync)");
     }
+    LOG_INFO("signaled mute change: %d", s_Haudio.interrupt_mute_ctrl->wValueLowByte);
 }
 
 void USBD_AUDIO_signal_volume_change(void)
@@ -87,6 +88,7 @@ void USBD_AUDIO_signal_volume_change(void)
     {
         LOG_WARN("interrupt EP busy on volume signal");
     }
+    LOG_INFO("signaled volume change: %d", s_Haudio.interrupt_volume_ctrl->wValueLowByte);
 }
 
 static uint8_t USBD_AUDIO_GetStreamType(USBD_HandleTypeDef* pdev)
