@@ -65,9 +65,9 @@ extern "C" {
 #define STREAMING_HS_BINTERVAL          1U  // for 1µframe of 1/8 ms, Interval for polling endpoint for data transfers
 #define INTERRUPT_HS_BINTERVAL          5U  // for 16µframe or 2 ms
 
-#define AUDIO_WTOTALLENGTH              60U
+#define AUDIO_WTOTALLENGTH              64U
 
-#define USB_AUDIO_CONFIG_DESC_SIZE      208U
+#define USB_AUDIO_CONFIG_DESC_SIZE      212U
 
 #define USB_AUDIO_DESC_SIZE             0x09U
 
@@ -157,7 +157,8 @@ extern "C" {
         AUDIO_CMD_STOP,
         AUDIO_CMD_FREQ,
         AUDIO_CMD_MUTE,
-        AUDIO_CMD_VOLUME,
+        AUDIO_CMD_VOLUME_CH1, // left
+        AUDIO_CMD_VOLUME_CH2, // right
     } AUDIO_CommandTypeDef;
 
 typedef enum

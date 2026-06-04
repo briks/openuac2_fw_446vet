@@ -82,7 +82,7 @@ const uint8_t USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZE] __attribute__((alig
         0x00, // iTerminal
 
         // Feature unit -------------------------------------------
-        14U,               // bLength
+        18U,               // bLength
         CS_INTERFACE,      // bDescriptorType
         FEATURE_UNIT,      // bDescriptorSubtype
         FEATURE_UNIT_ID,   // bUnitID
@@ -90,8 +90,12 @@ const uint8_t USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZE] __attribute__((alig
         0x0f,              // bmaControls(ch0) mute volume
         0x00,
         0x00,
-        0x00, // Only channel 0 (master) could be declared, but it's not working (with USB_AUDIO_CONFIG_DESC_SIZE and AUDIO_WTOTALLENGTH updated)
-        0x0f, // bmaControls(ch1) mute volume
+        0x00,
+        0x0f,              // bmaControls(ch1) mute volume
+        0x00,
+        0x00,
+        0x00,
+        0x0f,              // bmaControls(ch2) mute volume
         0x00,
         0x00,
         0x00,

@@ -10,8 +10,10 @@ extern I2C_HandleTypeDef ES9038Q2M_I2C_HANDLE;
 
 static uint8_t play;
 
-volatile int16_t requested_volume = AUDIO_CUR_VOL;                /* set at boot, host range */
-volatile int16_t es9038q2m_configured_volume = AUDIO_CUR_VOL + 1; /* differ → force apply on first ProcessEvents */
+volatile int16_t requested_volume_ch1 = AUDIO_CUR_VOL;                /* set at boot, host range */
+volatile int16_t requested_volume_ch2 = AUDIO_CUR_VOL;                /* set at boot, host range */
+volatile int16_t es9038q2m_configured_volume_ch1 = AUDIO_CUR_VOL + 1; /* differ → force apply on first ProcessEvents */
+volatile int16_t es9038q2m_configured_volume_ch2 = AUDIO_CUR_VOL + 1; /* differ → force apply on first ProcessEvents */
 volatile bool requested_mute = false;                             /* unmuted when amp powers on */
 volatile bool es9038q2m_configured_mute = false;                  /* set true at init since amp is off */
 volatile bool es9038q2m_audio_stop_pending = false;
@@ -54,27 +56,43 @@ uint8_t ES9038Q2M_DAC_Init(void)
      *   bit 7   = 1  : asrc_en
      *   [6:5]   = 10 : reserved defaults
      *   bit 4   = 1  : reserved default
-     *   bit 3   = 1  : ch1_volume (ch2 follows ch1)
+     *   bit 3   = 0  : ch1_volume (Allow independent control)
      *   bit 2   = 1  : latch_volume
      *   [1:0]   = 00 : no +18 dB gain
      */
-    registre = 0xBC;
+    registre = 0xD4;
     HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG27_ADDR,
                       I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
+
+    /* REG6 = 0x44: decrease volume ramp rate */
+    registre = 0x40;
+    HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG6_ADDR,
+                      I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
+    HAL_I2C_Mem_Read (&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG6_ADDR,
+                      I2C_MEMADD_SIZE_8BIT, &regread,  1, TIMEOUT_I2C_DELAY);
+    LOG_WARN("REG6 after init: 0x%02X", regread);
+
 
     /* Start muted; will unmute when amp powers on (even if host starts unmuted). */
     ES9038Q2M_DAC_SetMute_Force();
     return 0;
 }
 
-uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol)   /* Q8.8 dB from USB Audio class */
+uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol, uint8_t channel)   /* Q8.8 dB from USB Audio class */
 {
     LOG_INFO("requested volume change: %d", vol);
     if (vol < AUDIO_MIN_VOL)
         vol = AUDIO_MIN_VOL;
     if (vol > AUDIO_MAX_VOL)
         vol = AUDIO_MAX_VOL;
-    requested_volume = vol;
+    if (channel == CHANNEL_1)
+    {
+        requested_volume_ch1 = vol;
+    }
+    else
+    {
+        requested_volume_ch2 = vol;
+    }
     return 0;
 }
 
@@ -131,6 +149,25 @@ uint8_t ES9038Q2M_DAC_Stop(void)
     return 0;
 }
 
+uint8_t get_volume_register(int16_t volume_q88)
+{
+    /* REG15 REG16 attenuation = -0.5 dB / step.
+     * es9038q2m_configured_volume is signed Q8.8 dB in [AUDIO_MIN_VOL .. AUDIO_MAX_VOL] = [-64 dB .. 0 dB].
+     *   register_value = -2 * dB = -2 * (q88 / 256) = -q88 / 128
+     *   yielding 0..254 for 0..-64 dB.
+     */
+    int32_t attenuation = -((int32_t)volume_q88) / 64; //  /256 for q8.8, and x4 from -64/0 to 0/255
+    if (attenuation < 0)
+        attenuation = 0;
+    if (attenuation > 255)
+        attenuation = 255;
+    LOG_INFO("applying volume change: %d (registre=%u, %ddB)",
+        volume_q88,
+        (uint8_t)attenuation,
+         -attenuation / 2);
+    return (uint8_t)attenuation;
+}
+
 void ES9038Q2M_ProcessEvents(void)
 {
     /* Process audio events in task context, in order of priority.
@@ -143,6 +180,7 @@ void ES9038Q2M_ProcessEvents(void)
     static HAL_StatusTypeDef I2C_Status = HAL_OK;
     static uint32_t cnt = 0;
 
+    osDelay(5); // ms
     cnt++;
     if (cnt % 10 == 0)
     {
@@ -178,7 +216,7 @@ void ES9038Q2M_ProcessEvents(void)
         if ((ES9038Q2M_I2C_HANDLE.State == HAL_I2C_STATE_READY) && EtatAmp)
         {
             es9038q2m_configured_mute = requested_mute;
-            LOG_INFO("applying mute change: %d", es9038q2m_configured_mute);
+            LOG_INFO("applying mute change: %s", es9038q2m_configured_mute ? "MUTED" : "UNMUTED");
             I2C_Status = ES9038Q2M_DAC_SetMute_Immediate(es9038q2m_configured_mute);
             USBD_AUDIO_signal_mute_change();
         }
@@ -190,29 +228,24 @@ void ES9038Q2M_ProcessEvents(void)
         configured_format = requested_format;
     }
 
-    if (requested_volume != es9038q2m_configured_volume)
+    // Handle volume changes:
+    if (   (cnt % 20 == 0)
+        && (ES9038Q2M_I2C_HANDLE.State == HAL_I2C_STATE_READY)
+        && (   (requested_volume_ch1 != es9038q2m_configured_volume_ch1)
+            || (requested_volume_ch2 != es9038q2m_configured_volume_ch2)))
     {
-        if (ES9038Q2M_I2C_HANDLE.State == HAL_I2C_STATE_READY)
-        {
-            es9038q2m_configured_volume = requested_volume;
+        uint8_t reg_val;
+        es9038q2m_configured_volume_ch1 = requested_volume_ch1;
+        reg_val = get_volume_register(es9038q2m_configured_volume_ch1);
+        I2C_Status = HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
+                                       ES9038Q2M_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
+                                       &reg_val, 1, TIMEOUT_I2C_DELAY);
 
-            /* REG15 attenuation = -0.25 dB / step.
-             * es9038q2m_configured_volume is signed Q8.8 dB in [AUDIO_MIN_VOL .. AUDIO_MAX_VOL] = [-64 dB .. 0 dB].
-             *   register_value = -2 * dB = -2 * (q88 / 256) = -q88 / 128
-             *   yielding 0..254 for 0..-64 dB.
-             * REG16 not written — REG27 ch1_volume bit makes ch2 follow ch1.
-             */
-            int32_t attenuation = -((int32_t)es9038q2m_configured_volume) / 64; //  /256 for q8.8, and x4 from -64/0 to 0/255
-            if (attenuation < 0)
-                attenuation = 0;
-            if (attenuation > 255)
-                attenuation = 255;
-            uint8_t reg_val = (uint8_t)attenuation;
-            LOG_INFO("applying volume change: %d (registre=%u, %ddB)", es9038q2m_configured_volume, reg_val, -attenuation / 2);
-
-            I2C_Status = HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
-                                           ES9038Q2M_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
-                                           &reg_val, 1, TIMEOUT_I2C_DELAY);
-        }
+        es9038q2m_configured_volume_ch2 = requested_volume_ch2;
+        reg_val = get_volume_register(es9038q2m_configured_volume_ch2);
+        I2C_Status = HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
+                                       ES9038Q2M_REG16_ADDR, I2C_MEMADD_SIZE_8BIT,
+                                       &reg_val, 1, TIMEOUT_I2C_DELAY);
     }
+
 }

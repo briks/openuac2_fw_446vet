@@ -77,7 +77,7 @@ void USBD_AUDIO_signal_mute_change(void)
     {
         LOG_WARN("interrupt EP busy on mute signal (host will resync)");
     }
-    LOG_INFO("signaled mute change: %d", s_Haudio.interrupt_mute_ctrl->wValueLowByte);
+    LOG_INFO("signaled mute change on interrupt EP.");
 }
 
 void USBD_AUDIO_signal_volume_change(void)
@@ -454,12 +454,30 @@ static uint8_t USBD_AUDIO_EP0_RxReady(USBD_HandleTypeDef *pdev)
         break;
 
     case FEATURE_UNIT_ID:
-        switch (haudio->control.cmd) {
+        switch (haudio->control.cmd)
+        {
         case FU_MUTE_CONTROL:
             itf->AUDIO_Cmd(haudio->control.data, haudio->control.len, AUDIO_CMD_MUTE);
             break;
         case FU_VOLUME_CONTROL:
-            itf->AUDIO_Cmd(haudio->control.data, haudio->control.len, AUDIO_CMD_VOLUME);
+            /* 5.2.2 Control Request Layout,
+            5.2.5.7 Feature Unit Control Request,
+            5.2.5.7.2 Volume Control */
+            /* The wValue field specifies the Control Selector (CS) in the high byte and the Channel Number (CN) in the low byte*/
+            LOG_INFO("FU_VOLUME_CONTROL: index=0x%04X, value=0x%04X", pdev->request.wIndex, pdev->request.wValue);
+            if (LOBYTE(pdev->request.wValue) == 1)
+            {
+                itf->AUDIO_Cmd(haudio->control.data, haudio->control.len, AUDIO_CMD_VOLUME_CH1);
+            }
+            else if (LOBYTE(pdev->request.wValue) == 2)
+            {
+                itf->AUDIO_Cmd(haudio->control.data, haudio->control.len, AUDIO_CMD_VOLUME_CH2);
+            }
+            else
+            {// 0 could be master channel, but we don't support it
+                LOG_ERR("EP0_RxReady: unknown channel number %u for volume control", LOBYTE(pdev->request.wValue));
+                return USBD_FAIL;
+            }
             break;
         default:
             LOG_ERR("EP0_RxReady: unknown feature cmd 0x%02X", haudio->control.cmd);
@@ -688,7 +706,20 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
   case FEATURE_UNIT_ID:
       if (HIBYTE(req->wValue) == FU_VOLUME_CONTROL)
       {
-          SET_DATA(pbuf, int16_t, es9038q2m_configured_volume);
+        if (LOBYTE(req->wValue) == 1)
+        {
+          SET_DATA(pbuf, int16_t, es9038q2m_configured_volume_ch1);
+        }
+        else if (LOBYTE(req->wValue) == 2)
+        {
+          SET_DATA(pbuf, int16_t, es9038q2m_configured_volume_ch2);
+        }
+        else
+        {// 0 could be master channel, but we don't support it
+          LOG_ERR("GetCurrent: unknown channel number %u for volume control", LOBYTE(req->wValue));
+          USBD_CtlError(pdev, req);
+          return;
+        }
       }
       else if (HIBYTE(req->wValue) == FU_MUTE_CONTROL)
       {

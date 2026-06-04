@@ -880,7 +880,6 @@ void StartDefaultTask(void const * argument)
   for(;;)
   {
     ES9038Q2M_ProcessEvents();
-    osDelay(1);
   }
   /* USER CODE END 5 */
 }
