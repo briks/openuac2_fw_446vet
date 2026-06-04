@@ -55,10 +55,11 @@ extern "C" {
 /* USB Audio Class 2.0 volume values are signed Q8.8 dB.
  * Range: 0 dB (full) down to -60 dB, in 0.5 dB steps.
  * Special value 0x8000 means "silence" (use mute control instead).
+ * The DAC internally uses a larger range; host volume is scaled before applying.
  */
-#define AUDIO_MIN_VOL ((int16_t)(-60 * 256)) /* -60 dB  = 0xC400 */
+#define AUDIO_MIN_VOL ((int16_t)(-64 * 256)) /* -64 dB  = 0xC000 */
 #define AUDIO_MAX_VOL ((int16_t)(0 * 256))   /*   0 dB  = 0x0000 */
-#define AUDIO_VOL_RES ((int16_t)(128))       /* 0.5 dB step */
+#define AUDIO_VOL_RES ((int16_t)(64))       /* 0.25 dB step */
 #define AUDIO_CUR_VOL ((int16_t)(-20 * 256)) /* startup at -20 dB */
 #define FEEDBACK_HS_BINTERVAL           4U  // for 8µframe or 1 ms
 #define STREAMING_HS_BINTERVAL          1U  // for 1µframe of 1/8 ms, Interval for polling endpoint for data transfers

@@ -196,19 +196,19 @@ void ES9038Q2M_ProcessEvents(void)
         {
             es9038q2m_configured_volume = requested_volume;
 
-            /* REG15 attenuation = -0.5 dB / step.
-             * es9038q2m_configured_volume is signed Q8.8 dB in [AUDIO_MIN_VOL .. AUDIO_MAX_VOL] = [-60 dB .. 0 dB].
+            /* REG15 attenuation = -0.25 dB / step.
+             * es9038q2m_configured_volume is signed Q8.8 dB in [AUDIO_MIN_VOL .. AUDIO_MAX_VOL] = [-64 dB .. 0 dB].
              *   register_value = -2 * dB = -2 * (q88 / 256) = -q88 / 128
-             *   yielding 0..120 for 0..-60 dB.
+             *   yielding 0..254 for 0..-64 dB.
              * REG16 not written — REG27 ch1_volume bit makes ch2 follow ch1.
              */
-            int32_t attenuation = -((int32_t)es9038q2m_configured_volume) / 128;
+            int32_t attenuation = -((int32_t)es9038q2m_configured_volume) / 64; //  /256 for q8.8, and x4 from -64/0 to 0/255
             if (attenuation < 0)
                 attenuation = 0;
             if (attenuation > 255)
                 attenuation = 255;
             uint8_t reg_val = (uint8_t)attenuation;
-            LOG_INFO("applying volume change: %d (attenuation=%u)", es9038q2m_configured_volume, reg_val);
+            LOG_INFO("applying volume change: %d (registre=%u, %ddB)", es9038q2m_configured_volume, reg_val, -attenuation / 2);
 
             I2C_Status = HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
                                            ES9038Q2M_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
