@@ -69,26 +69,28 @@ USBD_ClassTypeDef USBD_AUDIO =
   USBD_AUDIO_GetDeviceQualifierDesc,
 };
 
-void USBD_AUDIO_signal_mute_change(void)
+void USBD_AUDIO_signal_mute_change(channel_t channel)
 {
+    s_Haudio.interrupt_mute_ctrl->wValueLowByte = channel;
     if (USBD_LL_Transmit(&hUsbDeviceHS, INTERRUPT_EP_ADDR,
                           (uint8_t *)s_Haudio.interrupt_mute_ctrl,
                           INTERRUPT_PACKET_SIZE) != USBD_OK)
     {
-        LOG_WARN("interrupt EP busy on mute signal (host will resync)");
+        LOG_ERR("interrupt EP busy on mute signal (host will resync)");
     }
-    LOG_INFO("signaled mute change on interrupt EP.");
+    LOG_WARN("signaled mute change: %d.", channel);
 }
 
-void USBD_AUDIO_signal_volume_change(void)
+void USBD_AUDIO_signal_volume_change(channel_t channel)
 {
+    s_Haudio.interrupt_volume_ctrl->wValueLowByte = channel;
     if (USBD_LL_Transmit(&hUsbDeviceHS, INTERRUPT_EP_ADDR,
                           (uint8_t *)s_Haudio.interrupt_volume_ctrl,
                           INTERRUPT_PACKET_SIZE) != USBD_OK)
     {
-        LOG_WARN("interrupt EP busy on volume signal");
+        LOG_ERR("interrupt EP busy on volume signal");
     }
-    LOG_INFO("signaled volume change: %d", s_Haudio.interrupt_volume_ctrl->wValueLowByte);
+    LOG_INFO("signaled volume change: %d", channel);
 }
 
 static uint8_t USBD_AUDIO_GetStreamType(USBD_HandleTypeDef* pdev)
@@ -162,71 +164,72 @@ void USBD_AUDIO_UpdateFB(USBD_HandleTypeDef *pdev)
 
 static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 {
-  UNUSED(cfgidx);
+    UNUSED(cfgidx);
 
-  USBD_AUDIO_HandleTypeDef* haudio = &s_Haudio;
-  haudio->interrupt_volume_ctrl = &s_interrupt_volume_ctrl;
-  haudio->interrupt_mute_ctrl = &s_interrupt_mute_ctrl;
+    USBD_AUDIO_HandleTypeDef *haudio = &s_Haudio;
+    haudio->interrupt_volume_ctrl = &s_interrupt_volume_ctrl;
+    haudio->interrupt_mute_ctrl = &s_interrupt_mute_ctrl;
 
-  pdev->pClassDataCmsit[pdev->classId] = haudio;
-  pdev->pClassData = pdev->pClassDataCmsit[pdev->classId];
+    pdev->pClassDataCmsit[pdev->classId] = haudio;
+    pdev->pClassData = pdev->pClassDataCmsit[pdev->classId];
 
-  if (pdev->dev_speed == USBD_SPEED_HIGH)
-  {
-    pdev->ep_out[STREAMING_EP_NUM].bInterval = STREAMING_HS_BINTERVAL;
-    pdev->ep_in[FEEDBACK_EP_NUM].bInterval = 	FEEDBACK_HS_BINTERVAL;
-    pdev->ep_in[INTERRUPT_EP_NUM].bInterval = 	INTERRUPT_HS_BINTERVAL;
-  }
-  else
-  {
-    LOG_ERR("USB Init: device not in HS mode (speed=%d)", pdev->dev_speed);
-    return USBD_FAIL;
-  }
+    if (pdev->dev_speed == USBD_SPEED_HIGH)
+    {
+        pdev->ep_out[STREAMING_EP_NUM].bInterval = STREAMING_HS_BINTERVAL;
+        pdev->ep_in[FEEDBACK_EP_NUM].bInterval = FEEDBACK_HS_BINTERVAL;
+        pdev->ep_in[INTERRUPT_EP_NUM].bInterval = INTERRUPT_HS_BINTERVAL;
+    }
+    else
+    {
+        LOG_ERR("USB Init: device not in HS mode (speed=%d)", pdev->dev_speed);
+        return USBD_FAIL;
+    }
 
-  USBD_LL_FlushEP(pdev, STREAMING_EP_ADDR);
-  USBD_LL_FlushEP(pdev, FEEDBACK_EP_ADDR);
-  USBD_LL_FlushEP(pdev, INTERRUPT_EP_ADDR);
-  if (USBD_LL_OpenEP(pdev, STREAMING_EP_ADDR, USBD_EP_TYPE_ISOC, USB_HS_MAX_PACKET_SIZE) != USBD_OK)
-  {
-      LOG_ERR("OpenEP streaming failed");
-      return USBD_FAIL;
-  }
-  if (USBD_LL_OpenEP(pdev, FEEDBACK_EP_ADDR, USBD_EP_TYPE_ISOC, FEEDBACK_PACKET_SIZE) != USBD_OK)
-  {
-      LOG_ERR("OpenEP feedback failed");
-      return USBD_FAIL;
-  }
-  if (USBD_LL_OpenEP(pdev, INTERRUPT_EP_ADDR, USBD_EP_TYPE_INTR, INTERRUPT_PACKET_SIZE) != USBD_OK)
-  {
-      LOG_ERR("OpenEP interrupt failed");
-      return USBD_FAIL;
-  }
+    USBD_LL_FlushEP(pdev, STREAMING_EP_ADDR);
+    USBD_LL_FlushEP(pdev, FEEDBACK_EP_ADDR);
+    USBD_LL_FlushEP(pdev, INTERRUPT_EP_ADDR);
+    if (USBD_LL_OpenEP(pdev, STREAMING_EP_ADDR, USBD_EP_TYPE_ISOC, USB_HS_MAX_PACKET_SIZE) != USBD_OK)
+    {
+        LOG_ERR("OpenEP streaming failed");
+        return USBD_FAIL;
+    }
+    if (USBD_LL_OpenEP(pdev, FEEDBACK_EP_ADDR, USBD_EP_TYPE_ISOC, FEEDBACK_PACKET_SIZE) != USBD_OK)
+    {
+        LOG_ERR("OpenEP feedback failed");
+        return USBD_FAIL;
+    }
+    if (USBD_LL_OpenEP(pdev, INTERRUPT_EP_ADDR, USBD_EP_TYPE_INTR, INTERRUPT_PACKET_SIZE) != USBD_OK)
+    {
+        LOG_ERR("OpenEP interrupt failed");
+        return USBD_FAIL;
+    }
 
-  pdev->ep_out[STREAMING_EP_NUM].is_used = 1U;
-  pdev->ep_in[FEEDBACK_EP_NUM].is_used = 1U;
-  pdev->ep_in[INTERRUPT_EP_NUM].is_used = 1U;
+    pdev->ep_out[STREAMING_EP_NUM].is_used = 1U;
+    pdev->ep_in[FEEDBACK_EP_NUM].is_used = 1U;
+    pdev->ep_in[INTERRUPT_EP_NUM].is_used = 1U;
 
-  haudio->alt_setting = 0;
-  haudio->stream_type = AUDIO_FORMAT_PCM;
-  haudio->sam_freq = 48000U;          /* default until host sets rate */
-  AudioBuffer_Init(&haudio->aud_buf, 0);
+    haudio->alt_setting = 0;
+    haudio->stream_type = AUDIO_FORMAT_PCM;
+    haudio->sam_freq = 48000U; /* default until host sets rate */
+    AudioBuffer_Init(&haudio->aud_buf, 0);
 
-  /* Initialize the Audio output Hardware layer */
-  USBD_AUDIO_ItfTypeDef* itf = pdev->pUserData[pdev->classId];
-  if (itf->AUDIO_Init() != USBD_OK)
-  {
-    LOG_ERR("USB Init: AUDIO_Init failed");
-    return USBD_FAIL;
-  }
+    /* Initialize the Audio output Hardware layer */
+    USBD_AUDIO_ItfTypeDef *itf = pdev->pUserData[pdev->classId];
+    if (itf->AUDIO_Init() != USBD_OK)
+    {
+        LOG_ERR("USB Init: AUDIO_Init failed");
+        return USBD_FAIL;
+    }
 
-  /* Prepare Out endpoint to receive 1st packet */
-  USBD_LL_PrepareReceive(pdev, STREAMING_EP_ADDR, (uint8_t*)haudio->pkt_buf, USB_HS_MAX_PACKET_SIZE);
-  USBD_LL_Transmit(pdev, FEEDBACK_EP_ADDR, (uint8_t *)&haudio->feedback_value, FEEDBACK_PACKET_SIZE);
-  //USBD_AUDIO_signal_mute_change();
-  //USBD_AUDIO_signal_volume_change();
+    /* Prepare Out endpoint to receive 1st packet */
+    USBD_LL_PrepareReceive(pdev, STREAMING_EP_ADDR, (uint8_t *)haudio->pkt_buf, USB_HS_MAX_PACKET_SIZE);
+    USBD_LL_Transmit(pdev, FEEDBACK_EP_ADDR, (uint8_t *)&haudio->feedback_value, FEEDBACK_PACKET_SIZE);
 
-      LOG_INFO("USB audio class init OK (HS)");
-      return USBD_OK;
+    USBD_AUDIO_signal_volume_change(CHANNEL_1);
+    USBD_AUDIO_signal_volume_change(CHANNEL_2);
+
+    LOG_INFO("USB audio class init OK (HS)");
+    return USBD_OK;
 }
 
 static uint8_t USBD_AUDIO_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
@@ -259,120 +262,121 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
 {
     LOG_DBG("Setup bmReq=0x%02X bReq=0x%02X wVal=0x%04X wIdx=0x%04X wLen=%u",
             req->bmRequest, req->bRequest, req->wValue, req->wIndex, req->wLength);
-    USBD_AUDIO_HandleTypeDef* haudio = pdev->pClassDataCmsit[pdev->classId];
+    USBD_AUDIO_HandleTypeDef *haudio = pdev->pClassDataCmsit[pdev->classId];
     uint16_t len;
     uint8_t *pbuf;
     uint16_t status_info = 0U;
 
     switch (req->bmRequest & USB_REQ_TYPE_MASK)
     {
-      case USB_REQ_TYPE_CLASS:
-      	switch (req->bRequest)
-      	{
-    				case AUDIO_REQ_CUR:
-    					if (req->bmRequest & 0x80)
-    					{
-    						AUDIO_REQ_GetCurrent(pdev, req);
-    					}
-    					else
-    					{
-    						AUDIO_REQ_SetCurrent(pdev, req);
-    					}
-    					break;
-
-    				case AUDIO_REQ_RANGE:
-    					if (req->bmRequest & 0x80)
-    					{
-    						AUDIO_REQ_GetRange(pdev, req);
-    					}
-    					else
-    					{
-    						goto ret_err;
-    					}
-    					break;
-
-    				default:
-    					goto ret_err;
-    					break;
-      	}
-        break;
-
-      case USB_REQ_TYPE_STANDARD:
+    case USB_REQ_TYPE_CLASS:
         switch (req->bRequest)
         {
-          case USB_REQ_GET_STATUS:
-            if (pdev->dev_state == USBD_STATE_CONFIGURED)
+        case AUDIO_REQ_CUR:
+            if (req->bmRequest & 0x80)
             {
-              USBD_CtlSendData(pdev, (uint8_t *)&status_info, 2U);
+                AUDIO_REQ_GetCurrent(pdev, req);
             }
             else
             {
-            	goto ret_err;
+                AUDIO_REQ_SetCurrent(pdev, req);
             }
             break;
 
-          case USB_REQ_GET_DESCRIPTOR:
-            if (HIBYTE(req->wValue) == CS_DEVICE)
+        case AUDIO_REQ_RANGE:
+            if (req->bmRequest & 0x80)
             {
-            	pbuf = (uint8_t *)USBD_AUDIO_GetAudioHeaderDesc(pdev->pConfDesc);
-              if (pbuf != NULL)
-              {
-                len = MIN(USB_AUDIO_DESC_SIZE, req->wLength);
-                USBD_CtlSendData(pdev, pbuf, len);
-              }
-              else
-              {
-              	goto ret_err;
-              }
-            }
-            break;
-
-          case USB_REQ_GET_INTERFACE:
-            if (pdev->dev_state == USBD_STATE_CONFIGURED)
-            {
-              USBD_CtlSendData(pdev, (uint8_t *)&haudio->alt_setting, 1U);
+                AUDIO_REQ_GetRange(pdev, req);
             }
             else
             {
-            	goto ret_err;
+                goto ret_err;
             }
             break;
 
-          case USB_REQ_SET_INTERFACE:
-            if (pdev->dev_state == USBD_STATE_CONFIGURED)
-            {
-              if ((uint8_t)(req->wValue) <= USBD_MAX_NUM_INTERFACES)
-              {
-                uint8_t prev = haudio->alt_setting;
-                haudio->alt_setting = (uint8_t)(req->wValue);
-                haudio->bit_depth = (haudio->alt_setting == 1) ? 32U : 24U;
-                if (prev != haudio->alt_setting) {
-                    LOG_INFO("alt setting %u → %u (bit_depth=%u)",
-                             prev, haudio->alt_setting, haudio->bit_depth);
-                }
-              }
-              else
-              {
-              	goto ret_err;
-              }
-            }
-            else
-            {
-            	goto ret_err;
-            }
-            break;
-
-          case USB_REQ_CLEAR_FEATURE:
-            break;
-
-          default:
+        default:
             goto ret_err;
             break;
         }
         break;
 
-      default:
-      	goto ret_err;
+    case USB_REQ_TYPE_STANDARD:
+        switch (req->bRequest)
+        {
+        case USB_REQ_GET_STATUS:
+            if (pdev->dev_state == USBD_STATE_CONFIGURED)
+            {
+                USBD_CtlSendData(pdev, (uint8_t *)&status_info, 2U);
+            }
+            else
+            {
+                goto ret_err;
+            }
+            break;
+
+        case USB_REQ_GET_DESCRIPTOR:
+            if (HIBYTE(req->wValue) == CS_DEVICE)
+            {
+                pbuf = (uint8_t *)USBD_AUDIO_GetAudioHeaderDesc(pdev->pConfDesc);
+                if (pbuf != NULL)
+                {
+                    len = MIN(USB_AUDIO_DESC_SIZE, req->wLength);
+                    USBD_CtlSendData(pdev, pbuf, len);
+                }
+                else
+                {
+                    goto ret_err;
+                }
+            }
+            break;
+
+        case USB_REQ_GET_INTERFACE:
+            if (pdev->dev_state == USBD_STATE_CONFIGURED)
+            {
+                USBD_CtlSendData(pdev, (uint8_t *)&haudio->alt_setting, 1U);
+            }
+            else
+            {
+                goto ret_err;
+            }
+            break;
+
+        case USB_REQ_SET_INTERFACE:
+            if (pdev->dev_state == USBD_STATE_CONFIGURED)
+            {
+                if ((uint8_t)(req->wValue) <= USBD_MAX_NUM_INTERFACES)
+                {
+                    uint8_t prev = haudio->alt_setting;
+                    haudio->alt_setting = (uint8_t)(req->wValue);
+                    haudio->bit_depth = (haudio->alt_setting == 1) ? 32U : 24U;
+                    if (prev != haudio->alt_setting)
+                    {
+                        LOG_INFO("alt setting %u → %u (bit_depth=%u)",
+                                 prev, haudio->alt_setting, haudio->bit_depth);
+                    }
+                }
+                else
+                {
+                    goto ret_err;
+                }
+            }
+            else
+            {
+                goto ret_err;
+            }
+            break;
+
+        case USB_REQ_CLEAR_FEATURE:
+            break;
+
+        default:
+            goto ret_err;
+            break;
+        }
+        break;
+
+    default:
+        goto ret_err;
         break;
     }
 
@@ -398,20 +402,26 @@ uint8_t rx_epum = 0xFF;
 
 static uint8_t USBD_AUDIO_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
-    USBD_AUDIO_HandleTypeDef* haudio = pdev->pClassDataCmsit[pdev->classId];
+    USBD_AUDIO_HandleTypeDef *haudio = pdev->pClassDataCmsit[pdev->classId];
 
-    if (epnum == FEEDBACK_EP_NUM) {
+    if (epnum == FEEDBACK_EP_NUM)
+    {
         USBD_LL_Transmit(pdev, FEEDBACK_EP_ADDR,
                          (uint8_t *)&haudio->feedback_value, FEEDBACK_PACKET_SIZE);
-    } else if (epnum == INTERRUPT_EP_NUM) {
-#if (LOG_LEVEL >= LOG_LEVEL_DBG)
-        static uint32_t int_tx = 0;
-        if (++int_tx % 10 == 0) {
-            LOG_DBG("interrupt EP TX count=%lu", (unsigned long)int_tx);
-        }
-#endif
-    } else {
-        LOG_WARN("DataIn on unexpected EP %u", epnum);
+    }
+    else if (epnum == INTERRUPT_EP_NUM)
+    {
+    #if (LOG_LEVEL >= LOG_LEVEL_DBG)
+            static uint32_t int_tx = 0;
+            if (++int_tx % 10 == 0)
+            {
+                LOG_DBG("interrupt EP TX count=%lu", (unsigned long)int_tx);
+            }
+    #endif
+    }
+    else
+    {
+        LOG_ERR("DataIn on unexpected EP %u", epnum);
     }
     return USBD_OK;
 }
@@ -691,68 +701,76 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
 
 static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
 {
-  USBD_AUDIO_HandleTypeDef* haudio = pdev->pClassDataCmsit[pdev->classId];
+    USBD_AUDIO_HandleTypeDef *haudio = pdev->pClassDataCmsit[pdev->classId];
 
-  if (haudio == NULL)
-  {
-    return;
-  }
-
-  USBD_memset(haudio->control.data, 0, USB_MAX_EP0_SIZE);
-  uint8_t *pbuf = haudio->control.data;
-
-  switch (HIBYTE(req->wIndex))
-  {
-  case FEATURE_UNIT_ID:
-      if (HIBYTE(req->wValue) == FU_VOLUME_CONTROL)
-      {
-        if (LOBYTE(req->wValue) == 1)
-        {
-          SET_DATA(pbuf, int16_t, es9038q2m_configured_volume_ch1);
-        }
-        else if (LOBYTE(req->wValue) == 2)
-        {
-          SET_DATA(pbuf, int16_t, es9038q2m_configured_volume_ch2);
-        }
-        else
-        {// 0 could be master channel, but we don't support it
-          LOG_ERR("GetCurrent: unknown channel number %u for volume control", LOBYTE(req->wValue));
-          USBD_CtlError(pdev, req);
-          return;
-        }
-      }
-      else if (HIBYTE(req->wValue) == FU_MUTE_CONTROL)
-      {
-          SET_DATA(pbuf, uint8_t, es9038q2m_configured_mute); // indicate to windows the mute state to display at startup, should reflect the internal state.
-      }
-      else
-      {
-          LOG_ERR("GetCurrent: unknown feature wValue=0x%04X", req->wValue);
-          USBD_CtlError(pdev, req);
-          return;
-      }
-      break;
-
-  case CLOCK_SOURCE_ID:
-    if (HIBYTE(req->wValue) == CS_SAM_FREQ_CONTROL)
+    if (haudio == NULL)
     {
-        SET_DATA(pbuf, uint32_t, haudio->sam_freq);
-    }
-    else
-    {
-        LOG_ERR("GetCurrent: unknown clock wValue=0x%04X", req->wValue);
-        USBD_CtlError(pdev, req);
         return;
     }
-    break;
 
-  default:
-  	LOG_ERR("GetCurrent: unknown unit 0x%02X", HIBYTE(req->wIndex));
-  	USBD_CtlError(pdev, req);
-  	break;
-  }
+    USBD_memset(haudio->control.data, 0, USB_MAX_EP0_SIZE);
+    uint8_t *pbuf = haudio->control.data;
 
-  USBD_CtlSendData(pdev, haudio->control.data, MIN(req->wLength, USB_MAX_EP0_SIZE));
+    switch (HIBYTE(req->wIndex))
+    {
+    case FEATURE_UNIT_ID:
+        if (HIBYTE(req->wValue) == FU_VOLUME_CONTROL)
+        {
+            if (LOBYTE(req->wValue) == 1)
+            {
+                LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d", 
+                    LOBYTE(req->wValue), es9038q2m_configured_volume_ch1);
+                SET_DATA(pbuf, int16_t, es9038q2m_configured_volume_ch1);
+            }
+            else if (LOBYTE(req->wValue) == 2)
+            {
+                LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d", 
+                    LOBYTE(req->wValue), es9038q2m_configured_volume_ch2);
+                SET_DATA(pbuf, int16_t, es9038q2m_configured_volume_ch2);
+            }
+            else
+            { // 0 could be master channel, but we don't support it
+                LOG_ERR("GetCurrent: unknown channel number %u for volume control", 
+                    LOBYTE(req->wValue));
+                USBD_CtlError(pdev, req);
+                return;
+            }
+        }
+        else if (HIBYTE(req->wValue) == FU_MUTE_CONTROL)
+        {
+            LOG_WARN("GetCurrent: mute state requested by host, channel=%u, returning %s",
+                LOBYTE(req->wValue), es9038q2m_configured_mute ? "ON" : "OFF");
+            SET_DATA(pbuf, uint8_t, es9038q2m_configured_mute ? 1 : 0); // indicate to windows the mute state to display at startup, should reflect the internal state.
+        }
+        else
+        {
+            LOG_ERR("GetCurrent: unknown feature wValue=0x%04X", req->wValue);
+            USBD_CtlError(pdev, req);
+            return;
+        }
+        break;
+
+    case CLOCK_SOURCE_ID:
+        if (HIBYTE(req->wValue) == CS_SAM_FREQ_CONTROL)
+        {
+            LOG_INFO("GetCurrent: sample frequency requested by host, value=%lu Hz", (unsigned long)haudio->sam_freq);
+            SET_DATA(pbuf, uint32_t, haudio->sam_freq);
+        }
+        else
+        {
+            LOG_ERR("GetCurrent: unknown clock wValue=0x%04X", req->wValue);
+            USBD_CtlError(pdev, req);
+            return;
+        }
+        break;
+
+    default:
+        LOG_ERR("GetCurrent: unknown unit 0x%02X", HIBYTE(req->wIndex));
+        USBD_CtlError(pdev, req);
+        break;
+    }
+
+    USBD_CtlSendData(pdev, haudio->control.data, MIN(req->wLength, USB_MAX_EP0_SIZE));
 }
 
 static void AUDIO_REQ_SetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)

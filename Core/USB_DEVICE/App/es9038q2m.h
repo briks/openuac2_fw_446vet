@@ -40,13 +40,9 @@ extern volatile bool es9038q2m_configured_mute;
 extern volatile bool es9038q2m_audio_stop_pending;
 extern const AUDIO_CodecTypeDef es9038q2m_instance;
 
-typedef enum _DAC_Channel
-{
-    CHANNEL_1 = 1, // left
-    CHANNEL_2 = 2  // right
-} DAC_Channel;
 
 uint8_t ES9038Q2M_DAC_Init(void);
+uint8_t ES9038Q2M_DAC_DeInit(void);
 uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol, uint8_t channel);
 uint8_t ES9038Q2M_DAC_Mute_set(uint8_t mute);
 void    ES9038Q2M_DAC_SetMute_Force(void);

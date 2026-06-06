@@ -185,7 +185,7 @@ static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
         if (codec->DAC_Volume != NULL && size >= 2)
         {
             /* little-endian q8.8 */
-            LOG_WARN("Volume command CN %d with size %lu, %u, %u", haudio->interrupt_volume_ctrl->wValueLowByte, (unsigned long) size, pbuf[0], pbuf[1]);
+            LOG_INFO("Volume command CN %d with size %lu, %u, %u", haudio->interrupt_volume_ctrl->wValueLowByte, (unsigned long) size, pbuf[0], pbuf[1]);
             int16_t vol = (int16_t)pbuf[0];
             vol |= ((int16_t)pbuf[1]) << 8;
             codec->DAC_Volume(vol, cmd == AUDIO_CMD_VOLUME_CH1 ? CHANNEL_1 : CHANNEL_2);

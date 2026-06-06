@@ -36,7 +36,7 @@ uint8_t AudioBuffer_Receive(AudioBuffer* ab, uint32_t rxSize)
 	}
 	else
 	{
-		LOG_WARN("audio buffer overflow (size=%lu cap=%lu rx=%lu)",
+		LOG_ERR("audio buffer overflow (size=%lu cap=%lu rx=%lu)",
                  (unsigned long)ab->size, (unsigned long)ab->capacity, (unsigned long)rxSize);
 		ab->size = ab->capacity;
 		ab->state = AB_OVFL;

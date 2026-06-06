@@ -210,14 +210,18 @@ void EXTI15_10_IRQHandler(void)
         pressStartTime = HAL_GetTick();
         LOG_DBG("pwr button DOWN @ %lu ms", (unsigned long)pressStartTime);
     }
-    if (LL_GPIO_IsInputPinSet(GPIOD, GPIO_PIN_11) == 0) {
+    if (LL_GPIO_IsInputPinSet(GPIOD, GPIO_PIN_11) == 0)
+    {
         pressDuration = HAL_GetTick() - pressStartTime;
         LOG_DBG("pwr button UP, duration=%lu ms", (unsigned long)pressDuration);
         if ((pressDuration < POWER_BUTTON_PRESS_MAX_TIME) &&
-            (pressDuration > POWER_BUTTON_PRESS_MIN_TIME)) {
+            (pressDuration > POWER_BUTTON_PRESS_MIN_TIME))
+        {
             CommandeAmp = !CommandeAmp;
-        } else {
-            LOG_WARN("power button press ignored (%lu ms)", (unsigned long)pressDuration);
+        }
+        else
+        {
+            LOG_INFO("power button press ignored (%lu ms)", (unsigned long)pressDuration);
         }
     }
 
