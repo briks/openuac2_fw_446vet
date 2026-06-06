@@ -43,6 +43,8 @@ extern const AUDIO_CodecTypeDef es9038q2m_instance;
 
 uint8_t ES9038Q2M_DAC_Init(void);
 uint8_t ES9038Q2M_DAC_DeInit(void);
+/* Request a volume change by a relative amount, as detected by the encoder */
+void ES9038Q2M_DAC_Volume_change(int8_t delta);
 uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol, uint8_t channel);
 uint8_t ES9038Q2M_DAC_Mute_set(uint8_t mute);
 void    ES9038Q2M_DAC_SetMute_Force(void);

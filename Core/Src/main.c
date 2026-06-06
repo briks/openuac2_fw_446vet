@@ -26,7 +26,7 @@
 #include "usbd_conf.h"
 #include "es9038q2m.h"
 #include "SEGGER_RTT.h"
-#define LOG_LEVEL LOG_LEVEL_INFO
+#define LOG_LEVEL LOG_LEVEL_DBG
 #include "log.h"
 /* USER CODE END Includes */
 
@@ -67,7 +67,7 @@ osThreadId defaultTaskHandle;
 uint32_t defaultTaskBuffer[defaultTaskBufferSize / sizeof(uint32_t)];
 osStaticThreadDef_t defaultTaskControlBlock;
 osThreadId VolumeHandle;
-#define VolumeBufferSize 256
+#define VolumeBufferSize 512
 uint32_t VolumeBuffer[VolumeBufferSize / sizeof(uint32_t)];
 osStaticThreadDef_t VolumeControlBlock;
 osThreadId LedsHandle;
@@ -82,10 +82,12 @@ osThreadId OnOffHandle;
 #define OnOffBufferSize 1024
 uint32_t OnOffBuffer[OnOffBufferSize / sizeof(uint32_t)];
 osStaticThreadDef_t OnOffControlBlock;
+
 /* USER CODE BEGIN PV */
 uint32_t errors_mask = 0;
-bool CommandeAmp=false; // variable globale commande amplis on/off
-bool EtatAmp=false; // variable globale etat des amplis on/off
+volatile bool CommandeAmp=false; // variable globale commande amplis on/off
+volatile bool EtatAmp=false; // variable globale etat des amplis on/off
+volatile int8_t last_encoder_counter = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -177,7 +179,7 @@ int main(void)
   MX_TIM3_Init();
   MX_USB_OTG_HS_PCD_Init();
   MX_I2S3_Init();
-  MX_TIM4_Init();
+  MX_TIM4_Init(); // encoder timer
   MX_SPI4_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
@@ -529,7 +531,7 @@ static void MX_TIM3_Init(void)
 }
 
 /**
-  * @brief TIM4 Initialization Function
+  * @brief TIM4 Initialization Function for encoder
   * @param None
   * @retval None
   */
@@ -552,7 +554,7 @@ static void MX_TIM4_Init(void)
   htim4.Init.Period = 255;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  sConfig.EncoderMode = TIM_ENCODERMODE_TI1;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
   sConfig.IC1Polarity = TIM_ICPOLARITY_FALLING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
@@ -561,7 +563,7 @@ static void MX_TIM4_Init(void)
   sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
   sConfig.IC2Filter = 3;
-  if (HAL_TIM_Encoder_Init(&htim4, &sConfig) != HAL_OK)
+  if (HAL_TIM_Encoder_Init(&htim4, &sConfig) != HAL_OK) //LL_TIM_ENCODER_Init
   {
     Error_Handler();
   }
@@ -895,9 +897,20 @@ void StartVolume(void const * argument)
 {
   /* USER CODE BEGIN StartVolume */
   /* Infinite loop */
-  for(;;)
+  for (;;)
   {
-    osDelay(20);
+      if (EtatAmp)
+      {
+          int8_t counter = __HAL_TIM_GET_COUNTER(&htim4);
+          if (counter != last_encoder_counter)
+          {
+              int8_t delta = (int8_t)(counter - last_encoder_counter); // handle overflow with signed int
+              last_encoder_counter = counter;
+              LOG_DBG("encoder %d, delta %d", counter, delta);
+              ES9038Q2M_DAC_Volume_change(delta);
+          }
+      }
+      osDelay(100);
   }
   /* USER CODE END StartVolume */
 }
@@ -955,7 +968,10 @@ void StartOnOff(void const *argument)
         if (CommandeAmp && !EtatAmp)
         {
             LOG_INFO("amp power ON sequence");
-            __HAL_TIM_SET_COUNTER(&htim4, 127); // on reinit l'encoder pour ne pas compter les crans lorsque Amp off
+            // start encoder
+            __HAL_TIM_SET_COUNTER(&htim4, 0);
+            last_encoder_counter = 0;
+            HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);
             // start Amp left& right
             LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
             LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
@@ -978,7 +994,7 @@ void StartOnOff(void const *argument)
             LOG_WARN("amp power OFF sequence");
             EtatAmp = false;
             ES9038Q2M_DAC_SetMute_Force();
-
+            HAL_TIM_Encoder_Stop(&htim4, TIM_CHANNEL_ALL);
             LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
             LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
             osDelay(100);

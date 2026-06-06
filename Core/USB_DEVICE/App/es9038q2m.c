@@ -85,9 +85,15 @@ uint8_t ES9038Q2M_DAC_DeInit(void)
     return 0;
 }
 
-    uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol, uint8_t channel) /* Q8.8 dB from USB Audio class */
+void ES9038Q2M_DAC_Volume_change(int8_t delta)
 {
-    LOG_INFO("requested volume change: %d", vol);
+    ES9038Q2M_DAC_Volume_set(requested_volume_ch1 + delta * AUDIO_VOL_RES, CHANNEL_1);
+    ES9038Q2M_DAC_Volume_set(requested_volume_ch2 + delta * AUDIO_VOL_RES, CHANNEL_2);
+}
+
+uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol, uint8_t channel) /* Q8.8 dB from USB Audio class */
+{
+    LOG_INFO("requested volume %d change: %d", channel, vol);
     if (vol < AUDIO_MIN_VOL)
         vol = AUDIO_MIN_VOL;
     if (vol > AUDIO_MAX_VOL)
@@ -130,9 +136,10 @@ HAL_StatusTypeDef ES9038Q2M_DAC_SetMute_Immediate(uint8_t mute)
         }
     } while (st == HAL_BUSY);
 
+    // Windows set and request only on channel 1
     //USBD_AUDIO_signal_mute_change(0);
     USBD_AUDIO_signal_mute_change(CHANNEL_1);
-    //USBD_AUDIO_signal_mute_change(CHANNEL_2);
+    // USBD_AUDIO_signal_mute_change(CHANNEL_2);
 
     return st;
 }
@@ -256,13 +263,13 @@ void ES9038Q2M_ProcessEvents(void)
         I2C_Status = HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
                                        ES9038Q2M_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
                                        &reg_val, 1, TIMEOUT_I2C_DELAY);
-        USBD_AUDIO_signal_volume_change(CHANNEL_1);
+        //USBD_AUDIO_signal_volume_change(CHANNEL_1);
 
         es9038q2m_configured_volume_ch2 = requested_volume_ch2;
         reg_val = convert_vol_to_register(es9038q2m_configured_volume_ch2);
         I2C_Status = HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
                                        ES9038Q2M_REG16_ADDR, I2C_MEMADD_SIZE_8BIT,
                                        &reg_val, 1, TIMEOUT_I2C_DELAY);
-        USBD_AUDIO_signal_volume_change(CHANNEL_2);
+        //USBD_AUDIO_signal_volume_change(CHANNEL_2);
     }
 }

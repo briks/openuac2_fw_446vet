@@ -59,11 +59,11 @@ typedef enum
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-#define POWER_BUTTON_PRESS_MIN_TIME  100 // in ms, min time to detect power button action
+#define POWER_BUTTON_PRESS_MIN_TIME  50 // in ms, min time to detect power button action
 #define POWER_BUTTON_PRESS_MAX_TIME 1000 // in ms, max time to detect power button action
 
-extern bool CommandeAmp; // variable globale commande amplis on/off
-extern bool EtatAmp;     // variable globale etat des amplis on/off
+extern volatile bool CommandeAmp; // variable globale commande amplis on/off
+extern volatile bool EtatAmp;     // variable globale etat des amplis on/off
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -75,7 +75,7 @@ extern bool EtatAmp;     // variable globale etat des amplis on/off
 void Error_Handler_str(const char *where);
 #define _STR(x) #x
 #define _XSTR(x) _STR(x)
-#define Error_Handler() Error_Handler_str(__FILE__ ":" _XSTR(__func__) " " _XSTR(__LINE__))
+#define Error_Handler() Error_Handler_str(__FILE__ ":" _XSTR(__LINE__))
 
 /* USER CODE BEGIN EFP */
 void Error_cancel_nonBlocking(errorNbr errorBit_nBr);

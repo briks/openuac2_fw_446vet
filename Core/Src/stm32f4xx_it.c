@@ -23,7 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "usbd_def.h"
-#define LOG_LEVEL LOG_LEVEL_INFO
+#define LOG_LEVEL LOG_LEVEL_DBG
 #include "log.h"
 /* USER CODE END Includes */
 
@@ -198,21 +198,22 @@ void I2C1_EV_IRQHandler(void)
   /* USER CODE END I2C1_EV_IRQn 1 */
 }
 
-uint32_t pressDuration = 0;
+
 /**
-  * @brief This function handles EXTI line[15:10] interrupts.
-  */
+ * @brief This function handles EXTI line[15:10] interrupts.
+ */
 void EXTI15_10_IRQHandler(void)
 {
     static uint32_t pressStartTime = 0;
 
-    if (LL_GPIO_IsInputPinSet(GPIOD, GPIO_PIN_11) == 1) {
+    if (LL_GPIO_IsInputPinSet(EXT_INT_ENCODER_GPIO_Port, EXT_INT_ENCODER_Pin) == 1)
+    {
         pressStartTime = HAL_GetTick();
         LOG_DBG("pwr button DOWN @ %lu ms", (unsigned long)pressStartTime);
     }
-    if (LL_GPIO_IsInputPinSet(GPIOD, GPIO_PIN_11) == 0)
+    if (LL_GPIO_IsInputPinSet(EXT_INT_ENCODER_GPIO_Port, EXT_INT_ENCODER_Pin) == 0)
     {
-        pressDuration = HAL_GetTick() - pressStartTime;
+        uint32_t pressDuration = HAL_GetTick() - pressStartTime;
         LOG_DBG("pwr button UP, duration=%lu ms", (unsigned long)pressDuration);
         if ((pressDuration < POWER_BUTTON_PRESS_MAX_TIME) &&
             (pressDuration > POWER_BUTTON_PRESS_MIN_TIME))

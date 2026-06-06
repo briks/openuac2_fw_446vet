@@ -11,8 +11,10 @@
 #error "Composite device is unsupported."
 #endif
 
-#define LOG_LEVEL LOG_LEVEL_INFO // Set to LOG_LEVEL_DEBUG for full logs
+#define LOG_LEVEL LOG_LEVEL_DBG// Set to LOG_LEVEL_DEBUG for full logs
 #include "log.h"
+
+volatile bool signal_mute_locked = true;
 
 static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
 static uint8_t USBD_AUDIO_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
@@ -71,6 +73,13 @@ USBD_ClassTypeDef USBD_AUDIO =
 
 void USBD_AUDIO_signal_mute_change(channel_t channel)
 {
+    if (signal_mute_locked)
+    {
+        LOG_WARN("mute change already signaled, skipping new signal");
+        return;
+    }
+    
+    signal_mute_locked = true;
     s_Haudio.interrupt_mute_ctrl->wValueLowByte = channel;
     if (USBD_LL_Transmit(&hUsbDeviceHS, INTERRUPT_EP_ADDR,
                           (uint8_t *)s_Haudio.interrupt_mute_ctrl,
@@ -225,8 +234,8 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
     USBD_LL_PrepareReceive(pdev, STREAMING_EP_ADDR, (uint8_t *)haudio->pkt_buf, USB_HS_MAX_PACKET_SIZE);
     USBD_LL_Transmit(pdev, FEEDBACK_EP_ADDR, (uint8_t *)&haudio->feedback_value, FEEDBACK_PACKET_SIZE);
 
-    USBD_AUDIO_signal_volume_change(CHANNEL_1);
-    USBD_AUDIO_signal_volume_change(CHANNEL_2);
+    // USBD_AUDIO_signal_volume_change(CHANNEL_1);
+    // USBD_AUDIO_signal_volume_change(CHANNEL_2);
 
     LOG_INFO("USB audio class init OK (HS)");
     return USBD_OK;
@@ -275,10 +284,12 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
         case AUDIO_REQ_CUR:
             if (req->bmRequest & 0x80)
             {
+                LOG_DBG("SetupGetCurrent");
                 AUDIO_REQ_GetCurrent(pdev, req);
             }
             else
             {
+                LOG_DBG("SetupSetCurrent");
                 AUDIO_REQ_SetCurrent(pdev, req);
             }
             break;
@@ -286,6 +297,7 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
         case AUDIO_REQ_RANGE:
             if (req->bmRequest & 0x80)
             {
+                LOG_DBG("SetupGetRange");
                 AUDIO_REQ_GetRange(pdev, req);
             }
             else
@@ -306,6 +318,7 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
         case USB_REQ_GET_STATUS:
             if (pdev->dev_state == USBD_STATE_CONFIGURED)
             {
+                LOG_DBG("SetupGetStatus");
                 USBD_CtlSendData(pdev, (uint8_t *)&status_info, 2U);
             }
             else
@@ -317,6 +330,7 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
         case USB_REQ_GET_DESCRIPTOR:
             if (HIBYTE(req->wValue) == CS_DEVICE)
             {
+                LOG_DBG("SetupGetDesc");
                 pbuf = (uint8_t *)USBD_AUDIO_GetAudioHeaderDesc(pdev->pConfDesc);
                 if (pbuf != NULL)
                 {
@@ -333,6 +347,7 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
         case USB_REQ_GET_INTERFACE:
             if (pdev->dev_state == USBD_STATE_CONFIGURED)
             {
+                LOG_DBG("SetupGetInterface");
                 USBD_CtlSendData(pdev, (uint8_t *)&haudio->alt_setting, 1U);
             }
             else
@@ -344,6 +359,7 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
         case USB_REQ_SET_INTERFACE:
             if (pdev->dev_state == USBD_STATE_CONFIGURED)
             {
+                LOG_DBG("SetupSetInterface");
                 if ((uint8_t)(req->wValue) <= USBD_MAX_NUM_INTERFACES)
                 {
                     uint8_t prev = haudio->alt_setting;
@@ -467,6 +483,7 @@ static uint8_t USBD_AUDIO_EP0_RxReady(USBD_HandleTypeDef *pdev)
         switch (haudio->control.cmd)
         {
         case FU_MUTE_CONTROL:
+            LOG_INFO("FU_MUTE_CONTROL: index=0x%04X, value=0x%04X", pdev->request.wIndex, pdev->request.wValue);
             itf->AUDIO_Cmd(haudio->control.data, haudio->control.len, AUDIO_CMD_MUTE);
             break;
         case FU_VOLUME_CONTROL:
@@ -523,7 +540,7 @@ void USBD_AUDIO_Sync(USBD_HandleTypeDef *pdev)
     AudioBuffer_Sync(&haudio->aud_buf, AUDIO_SYNC_CLK_DIV << 3);
     USBD_AUDIO_UpdateFB(&hUsbDeviceHS);
 
-#if (LOG_LEVEL >= LOG_LEVEL_DBG)
+#if 0
     static uint32_t dbg_cnt = 0;
     if (++dbg_cnt >= 150) {  /* ~10 Hz at 1.5 kHz Sync rate */
         dbg_cnt = 0;
@@ -557,12 +574,14 @@ static uint8_t USBD_AUDIO_IsoINIncomplete(USBD_HandleTypeDef *pdev, uint8_t epnu
 {
     USBD_AUDIO_HandleTypeDef* haudio = pdev->pClassDataCmsit[pdev->classId];
 
-    if (epnum == FEEDBACK_EP_NUM) {
+    if (epnum == FEEDBACK_EP_NUM)
+    {
         USBD_LL_Transmit(pdev, FEEDBACK_EP_ADDR,
-                         (uint8_t*)&haudio->feedback_value, FEEDBACK_PACKET_SIZE);
-#if (LOG_LEVEL >= LOG_LEVEL_DBG)
+                         (uint8_t *)&haudio->feedback_value, FEEDBACK_PACKET_SIZE);
+#if 0
         static uint32_t incomp_in = 0;
-        if (++incomp_in % 100 == 0) {
+        if (++incomp_in % 100 == 0)
+        {
             LOG_DBG("IsoIN incomplete count=%lu", (unsigned long)incomp_in);
         }
 #endif
@@ -577,7 +596,7 @@ static uint8_t USBD_AUDIO_IsoOutIncomplete(USBD_HandleTypeDef *pdev, uint8_t epn
     if (epnum == STREAMING_EP_NUM) {
         USBD_LL_PrepareReceive(pdev, STREAMING_EP_ADDR,
                                (uint8_t*)haudio->pkt_buf, USB_HS_MAX_PACKET_SIZE);
-#if (LOG_LEVEL >= LOG_LEVEL_DBG)
+#if 0
         static uint32_t incomp_out = 0;
         if (++incomp_out % 100 == 0) {
             LOG_DBG("IsoOUT incomplete count=%lu", (unsigned long)incomp_out);
@@ -614,7 +633,7 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
 
     		uint32_t packetSize = USBD_LL_GetRxDataSize(pdev, epnum);
 
-#if (LOG_LEVEL >= LOG_LEVEL_DBG)
+#if 0
         static uint32_t pkt_cnt = 0;
         static uint32_t pkt_bytes = 0;
         pkt_cnt++;
@@ -702,6 +721,7 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
 static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
 {
     USBD_AUDIO_HandleTypeDef *haudio = pdev->pClassDataCmsit[pdev->classId];
+    bool get_current_mute_received = false;
 
     if (haudio == NULL)
     {
@@ -711,6 +731,8 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
     USBD_memset(haudio->control.data, 0, USB_MAX_EP0_SIZE);
     uint8_t *pbuf = haudio->control.data;
 
+    LOG_DBG("GetCurrent: cmd=0x%02X, unit=0x%02X, len=%u", haudio->control.cmd, haudio->control.unit, haudio->control.len);
+
     switch (HIBYTE(req->wIndex))
     {
     case FEATURE_UNIT_ID:
@@ -718,14 +740,14 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
         {
             if (LOBYTE(req->wValue) == 1)
             {
-                LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d", 
-                    LOBYTE(req->wValue), es9038q2m_configured_volume_ch1);
+                LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u", 
+                    LOBYTE(req->wValue), es9038q2m_configured_volume_ch1, req->wLength);
                 SET_DATA(pbuf, int16_t, es9038q2m_configured_volume_ch1);
             }
             else if (LOBYTE(req->wValue) == 2)
             {
-                LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d", 
-                    LOBYTE(req->wValue), es9038q2m_configured_volume_ch2);
+                LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u", 
+                    LOBYTE(req->wValue), es9038q2m_configured_volume_ch2, req->wLength);
                 SET_DATA(pbuf, int16_t, es9038q2m_configured_volume_ch2);
             }
             else
@@ -738,9 +760,10 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
         }
         else if (HIBYTE(req->wValue) == FU_MUTE_CONTROL)
         {
-            LOG_WARN("GetCurrent: mute state requested by host, channel=%u, returning %s",
-                LOBYTE(req->wValue), es9038q2m_configured_mute ? "ON" : "OFF");
+            LOG_WARN("GetCurrent: mute state requested by host, channel=%u, returning %s, size=%u",
+                     LOBYTE(req->wValue), es9038q2m_configured_mute ? "ON" : "OFF", req->wLength);
             SET_DATA(pbuf, uint8_t, es9038q2m_configured_mute ? 1 : 0); // indicate to windows the mute state to display at startup, should reflect the internal state.
+            get_current_mute_received = true;
         }
         else
         {
@@ -771,6 +794,11 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
     }
 
     USBD_CtlSendData(pdev, haudio->control.data, MIN(req->wLength, USB_MAX_EP0_SIZE));
+    
+    if (get_current_mute_received)
+    {
+        signal_mute_locked = false;
+    }
 }
 
 static void AUDIO_REQ_SetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)
