@@ -14,8 +14,6 @@
 #define LOG_LEVEL LOG_LEVEL_DBG // Set to LOG_LEVEL_DBG for full logs
 #include "log.h"
 
-// volatile bool signal_mute_locked = true;
-
 static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
 static uint8_t USBD_AUDIO_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
 static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req);
@@ -73,13 +71,6 @@ USBD_ClassTypeDef USBD_AUDIO =
 
 void USBD_AUDIO_signal_mute_change(void)
 {
-    // if (signal_mute_locked)
-    // {
-    //     LOG_WARN("mute change already signaled, skipping new signal");
-    //     return;
-    // }
-    
-    // signal_mute_locked = true;
     s_Haudio.interrupt_mute_ctrl->wValueLowByte = CHANNEL_MASTER; // master channel only
     LOG_DBG("Interrupt message : 0x%02X%02X %02X%02X %02X%02X",
             s_Haudio.interrupt_mute_ctrl->binfo,
@@ -97,13 +88,12 @@ void USBD_AUDIO_signal_mute_change(void)
     {
         LOG_ERR("interrupt EP busy on mute signal (host will resync)");
     }
-    LOG_WARN("signaled mute change on master channel.");
+    LOG_INFO("signaled mute change on master channel.");
 }
 
-void USBD_AUDIO_signal_volume_change(channel_t channel)
+void USBD_AUDIO_signal_volume_change(void)
 {
-
-    s_Haudio.interrupt_volume_ctrl->wValueLowByte = channel;
+    s_Haudio.interrupt_volume_ctrl->wValueLowByte = CHANNEL_MASTER;
 
     LOG_DBG("Interrupt message : 0x%02X%02X %02X%02X %02X%02X",
             s_Haudio.interrupt_volume_ctrl->binfo,
@@ -119,7 +109,7 @@ void USBD_AUDIO_signal_volume_change(channel_t channel)
     {
         LOG_ERR("interrupt EP busy on volume signal");
     }
-    LOG_INFO("signaled volume change on CN %d", channel);
+    LOG_INFO("signaled volume change on CN master");
 }
 
 static uint8_t USBD_AUDIO_GetStreamType(USBD_HandleTypeDef* pdev)
@@ -618,7 +608,7 @@ void USBD_AUDIO_Sync(USBD_HandleTypeDef *pdev)
 #endif
 
     if ((haudio->aud_buf.state == AB_UDFL) && (haudio->state == AUDIO_STATE_PLAYING)) {
-        LOG_INFO("audio → STOPPED (underflow)");
+        LOG_INFO("audio -> STOPPED (underflow)");
         haudio->state = AUDIO_STATE_STOPPED;
         haudio->stream_type = AUDIO_FORMAT_PCM;
         es9038q2m_audio_stop_pending = true;
@@ -835,7 +825,7 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
         {
             // Use resquested values to match interrupt sent on change.
             // Send new mute even if not applied yet
-            LOG_WARN("GetCurrent: mute state requested by host, channel=%u, returning %s, size=%u",
+            LOG_INFO("GetCurrent: mute state requested by host, channel=%u, returning %s, size=%u",
                      LOBYTE(req->wValue), requested_mute ? "ON" : "OFF", req->wLength);
             SET_DATA(pbuf, uint8_t, requested_mute ? 1 : 0); // indicate to windows the mute state to display at startup, should reflect the internal state.
             get_current_mute_received = true;
@@ -869,11 +859,6 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
     }
 
     USBD_CtlSendData(pdev, haudio->control.data, MIN(req->wLength, USB_MAX_EP0_SIZE));
-    
-    // if (get_current_mute_received)
-    // {
-    //     signal_mute_locked = true;
-    // }
 }
 
 static void AUDIO_REQ_SetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)

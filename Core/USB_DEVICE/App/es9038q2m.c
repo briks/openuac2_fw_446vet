@@ -6,8 +6,6 @@
 
 #define TIMEOUT_I2C_DELAY   10   /* ms; could be HAL_MAX_DELAY for infinite */
 
-extern I2C_HandleTypeDef ES9038Q2M_I2C_HANDLE;
-
 static uint8_t play;
 
 volatile int16_t requested_volume_ch1 = AUDIO_CUR_VOL;                /* set at boot, host range */
@@ -15,7 +13,7 @@ volatile int16_t requested_volume_ch2 = AUDIO_CUR_VOL;                /* set at 
 volatile int16_t es9038q2m_configured_volume_ch1 = AUDIO_CUR_VOL + 1; /* differ → force apply on first ProcessEvents */
 volatile int16_t es9038q2m_configured_volume_ch2 = AUDIO_CUR_VOL + 1; /* differ → force apply on first ProcessEvents */
 volatile bool requested_mute = true;                                  /* unmuted when amp powers on */
-volatile bool es9038q2m_configured_mute = false;                      /* will be switched at startup since amp is off */
+volatile bool es9038q2m_configured_mute = true;                       /* will be forced at startup as amps are off */
 volatile bool es9038q2m_audio_stop_pending = false;
 
 AUDIO_FormatTypeDef requested_format  = AUDIO_FORMAT_PCM;
@@ -46,11 +44,11 @@ uint8_t ES9038Q2M_DAC_Init(void)
 
     /* REG14 = 0x8A: normal operation (read-modify-write pattern kept for diagnostics) */
     registre = 0x8a;
-    HAL_I2C_Mem_Read (&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG14_ADDR,
+    HAL_I2C_Mem_Read (&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG14_ADDR,
                       I2C_MEMADD_SIZE_8BIT, &regread,  1, TIMEOUT_I2C_DELAY);
-    HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG14_ADDR,
+    HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG14_ADDR,
                       I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
-    HAL_I2C_Mem_Read (&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG14_ADDR,
+    HAL_I2C_Mem_Read (&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG14_ADDR,
                       I2C_MEMADD_SIZE_8BIT, &regread,  1, TIMEOUT_I2C_DELAY);
 
     /* REG27 = 0xBC: ASRC enable, link L/R volume, latch volume, no +18 dB gain.
@@ -62,20 +60,20 @@ uint8_t ES9038Q2M_DAC_Init(void)
      *   [1:0]   = 00 : no +18 dB gain
      */
     registre = 0xD4;
-    HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG27_ADDR,
+    HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG27_ADDR,
                       I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
 
     /* REG6 = 0x44: increase volume ramp rate */
     registre = 0x40;
-    HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG6_ADDR,
+    HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG6_ADDR,
                       I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
-    HAL_I2C_Mem_Read (&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG6_ADDR,
+    HAL_I2C_Mem_Read (&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG6_ADDR,
                       I2C_MEMADD_SIZE_8BIT, &regread,  1, TIMEOUT_I2C_DELAY);
     LOG_DBG("REG6 after init: 0x%02X", regread);
 
 
     /* Start muted; will unmute when amp powers on (even if host starts unmuted). */
-    ES9038Q2M_DAC_Mute_set(true);
+    ES9038Q2M_DAC_SetMute_Force(true);
     return 0;
 }
 
@@ -90,7 +88,7 @@ void ES9038Q2M_DAC_Volume_change(int8_t delta)
     ES9038Q2M_DAC_Volume_set(requested_volume_ch1 + delta * AUDIO_VOL_RES, CHANNEL_1);
     ES9038Q2M_DAC_Volume_set(requested_volume_ch2 + delta * AUDIO_VOL_RES, CHANNEL_2);
     // Avoid to send two interrupts at the same time. Works ok, get cur done on both channels.
-    USBD_AUDIO_signal_volume_change(CHANNEL_MASTER);
+    USBD_AUDIO_signal_volume_change();
 }
 
 uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol, uint8_t channel) /* Q8.8 dB from USB Audio class */
@@ -126,7 +124,7 @@ uint8_t ES9038Q2M_DAC_Mute_set(bool mute)
         requested_mute = true;
         return 0; // could return USBD_FAIL ?
     }
-    LOG_WARN("DAC_Mute_set request: %s", mute ? "MUTED" : "UNMUTED");
+    LOG_INFO("DAC_Mute_set request: %s", mute ? "MUTED" : "UNMUTED");
     requested_mute = mute;
     return 0;
 }
@@ -135,14 +133,23 @@ HAL_StatusTypeDef ES9038Q2M_DAC_SetMute_Immediate(bool mute)
 {
     HAL_StatusTypeDef st = HAL_OK;
 
-    LOG_WARN("DAC_SetMute_Immediate: %s", mute ? "MUTED" : "UNMUTED");
+    LOG_INFO("DAC_SetMute_Immediate: %s", mute ? "MUTED" : "UNMUTED");
 
     /* REG7: 0x81 = mute, 0x80 = unmute (filter bw + system mute) */
     registre = mute ? 0x81 : 0x80;
 
+    if (mute)
+    {
+        LL_GPIO_ResetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
+    }
+    else
+    {
+        LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
+    }
+
     do
     {
-        st = HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
+        st = HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
                                ES9038Q2M_REG7_ADDR, I2C_MEMADD_SIZE_8BIT,
                                &registre, 1, TIMEOUT_I2C_DELAY);
         if (st == HAL_BUSY)
@@ -158,7 +165,7 @@ HAL_StatusTypeDef ES9038Q2M_DAC_SetMute_Immediate(bool mute)
  Not a host request, so signal mute change to host */
 void ES9038Q2M_DAC_SetMute_Force(bool mute)
 {
-    LOG_WARN("DAC_SetMute_Force %s", mute ? "MUTE" : "UNMUTE");
+    LOG_INFO("DAC_SetMute_Force %s", mute ? "MUTE" : "UNMUTE");
     requested_mute = mute;
     es9038q2m_configured_mute = mute;
     ES9038Q2M_DAC_SetMute_Immediate(mute);
@@ -217,14 +224,14 @@ void ES9038Q2M_ProcessEvents(void)
     cnt++;
     if (cnt % 10 == 0)
     {
-        I2C_Status = HAL_I2C_Mem_Read(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
+        I2C_Status = HAL_I2C_Mem_Read(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
                                       ES9038Q2M_REG96_ADDR, I2C_MEMADD_SIZE_8BIT,
                                       &status_register, 1, TIMEOUT_I2C_DELAY);
         if (I2C_Status != HAL_OK)
         {
             Error_Handler_nonBlocking("I2C read failure", ERROR_I2C);
-            HAL_I2C_DeInit(&ES9038Q2M_I2C_HANDLE);
-            MX_I2C1_Init();
+            HAL_I2C_DeInit(&DAC_I2C_Handle);
+            MX_I2C1_Init(&DAC_I2C_Handle);
             I2C_Status = HAL_OK; /* retry after re-init */
         }
         else
@@ -246,12 +253,12 @@ void ES9038Q2M_ProcessEvents(void)
 
     if (requested_mute != es9038q2m_configured_mute)
     {
-        if (ES9038Q2M_I2C_HANDLE.State == HAL_I2C_STATE_READY) 
+        if (DAC_I2C_Handle.State == HAL_I2C_STATE_READY) 
         {
             /* enforce mute if amp is off, even if host requested unmute */
             
             es9038q2m_configured_mute = requested_mute;
-            LOG_WARN("applying mute change: %s", es9038q2m_configured_mute ? "MUTED" : "UNMUTED");
+            LOG_INFO("applying mute change: %s", es9038q2m_configured_mute ? "MUTED" : "UNMUTED");
             I2C_Status = ES9038Q2M_DAC_SetMute_Immediate(es9038q2m_configured_mute);
         }
     }
@@ -264,20 +271,20 @@ void ES9038Q2M_ProcessEvents(void)
 
     // Handle volume changes:
     if (   (cnt % 20 == 0)
-        && (ES9038Q2M_I2C_HANDLE.State == HAL_I2C_STATE_READY)
+        && (DAC_I2C_Handle.State == HAL_I2C_STATE_READY)
         && (   (requested_volume_ch1 != es9038q2m_configured_volume_ch1)
             || (requested_volume_ch2 != es9038q2m_configured_volume_ch2)))
     {
         uint8_t reg_val;
         es9038q2m_configured_volume_ch1 = requested_volume_ch1;
         reg_val = convert_vol_to_register(es9038q2m_configured_volume_ch1);
-        I2C_Status = HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
+        I2C_Status = HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
                                        ES9038Q2M_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
                                        &reg_val, 1, TIMEOUT_I2C_DELAY);
 
         es9038q2m_configured_volume_ch2 = requested_volume_ch2;
         reg_val = convert_vol_to_register(es9038q2m_configured_volume_ch2);
-        I2C_Status = HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
+        I2C_Status = HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
                                        ES9038Q2M_REG16_ADDR, I2C_MEMADD_SIZE_8BIT,
                                        &reg_val, 1, TIMEOUT_I2C_DELAY);
     }

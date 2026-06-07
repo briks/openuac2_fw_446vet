@@ -43,7 +43,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+extern I2C_HandleTypeDef DAC_I2C_Handle;
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -80,7 +80,7 @@ void Error_Handler_str(const char *where);
 /* USER CODE BEGIN EFP */
 void Error_cancel_nonBlocking(errorNbr errorBit_nBr);
 void Error_Handler_nonBlocking(char *errorStr, errorNbr errorBit_nBr);
-void MX_I2C1_Init(void);
+void MX_I2C1_Init(I2C_HandleTypeDef *hi2c);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
@@ -90,9 +90,9 @@ void MX_I2C1_Init(void);
 #define Light_fire_R_GPIO_Port GPIOE
 #define Light_fire_L_Pin LL_GPIO_PIN_4
 #define Light_fire_L_GPIO_Port GPIOE
-#define Led_G_Pin LL_GPIO_PIN_5
+#define Led_G_Pin LL_GPIO_PIN_5 // LED red and yellow
 #define Led_G_GPIO_Port GPIOE
-#define Led_R_Pin LL_GPIO_PIN_6
+#define Led_R_Pin LL_GPIO_PIN_6 // LED green
 #define Led_R_GPIO_Port GPIOE
 #define RELAY_ON_Pin LL_GPIO_PIN_13
 #define RELAY_ON_GPIO_Port GPIOC

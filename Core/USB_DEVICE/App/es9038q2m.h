@@ -17,7 +17,6 @@
 	*   REG96 : input status (DoP / SPDIF / I²S / DSD valid flags)
 	*/
 
-#define ES9038Q2M_I2C_HANDLE       hi2c1
 #define ES9038Q2M_I2C_DEV_ADDR     (0x48 << 1)
 
 #define ES9038Q2M_REG6_ADDR   6 /* De amphasis, DOP and volume ramp rate */
@@ -36,10 +35,7 @@
 
 extern volatile int16_t requested_volume_ch1;
 extern volatile int16_t requested_volume_ch2;
-// extern volatile int16_t es9038q2m_configured_volume_ch1;
-// extern volatile int16_t es9038q2m_configured_volume_ch2;
 extern volatile bool requested_mute;
-// extern volatile bool es9038q2m_configured_mute;
 extern volatile bool es9038q2m_audio_stop_pending;
 extern const AUDIO_CodecTypeDef es9038q2m_instance;
 

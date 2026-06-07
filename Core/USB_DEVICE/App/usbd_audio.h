@@ -265,7 +265,7 @@ typedef enum _channel_t
 } channel_t;
 
 void USBD_AUDIO_signal_mute_change(void);
-void USBD_AUDIO_signal_volume_change(channel_t channel);
+void USBD_AUDIO_signal_volume_change(void);
 
 uint8_t USBD_AUDIO_RegisterInterface(USBD_HandleTypeDef *pdev,
                                      USBD_AUDIO_ItfTypeDef *fops);
