@@ -35,7 +35,7 @@ static void *USBD_AUDIO_GetAudioHeaderDesc(uint8_t *pConfDesc);
 
 static USBD_AUDIO_HandleTypeDef s_Haudio;
 
-static USBD_InterruptControlTypedef s_interrupt_volume_ctrl = {
+static USBD_InterruptControlTypedef s_interrupt_volume_ctrl __attribute__((aligned(4))) = {
     .binfo = 0,                          // 0 (Interface request)
     .bAttribute = 1,                     // 0x1 (CUR request)
     .wValueLowByte = CHANNEL_MASTER,     // CN Channel Number in low byte (0 master)
@@ -44,10 +44,10 @@ static USBD_InterruptControlTypedef s_interrupt_volume_ctrl = {
     .wIndexHighByte = FEATURE_UNIT_ID,   // 0x2 FEATURE UNIT ID
 };
 
-static USBD_InterruptControlTypedef s_interrupt_mute_ctrl = {
+static USBD_InterruptControlTypedef s_interrupt_mute_ctrl __attribute__((aligned(4))) = {
     .binfo = 0,                        // 0 (Interface request)
     .bAttribute = 1,                   // 0x1 (CUR request)
-    .wValueLowByte = CHANNEL_MASTER,        // CN Channel Number in low byte (0 master)
+    .wValueLowByte = CHANNEL_MASTER,   // CN Channel Number in low byte (0 master)
     .wValueHighByte = FU_MUTE_CONTROL, // CS Channel Selector 0X1 FU_MUTE_CONTROL OR 0x2 FU_VOLUME_CONTROL
     .wIndexLowByte = AC_INTERFACE_NUM, // interface 0
     .wIndexHighByte = FEATURE_UNIT_ID, // 0x2 FEATURE UNIT ID
