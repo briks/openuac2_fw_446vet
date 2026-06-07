@@ -38,7 +38,7 @@ static USBD_AUDIO_HandleTypeDef s_Haudio;
 static USBD_InterruptControlTypedef s_interrupt_volume_ctrl = {
     .binfo = 0,                          // 0 (Interface request)
     .bAttribute = 1,                     // 0x1 (CUR request)
-    .wValueLowByte = 0,                  // CN Channel Number in low byte (0 master)
+    .wValueLowByte = CHANNEL_1,          // CN Channel Number in low byte (ok on channel1 only)
     .wValueHighByte = FU_VOLUME_CONTROL, // CS Channel Selector 0X1 FU_MUTE_CONTROL OR 0x2 FU_VOLUME_CONTROL
     .wIndexLowByte = AC_INTERFACE_NUM,   // interface 0
     .wIndexHighByte = FEATURE_UNIT_ID,   // 0x2 FEATURE UNIT ID
@@ -47,7 +47,7 @@ static USBD_InterruptControlTypedef s_interrupt_volume_ctrl = {
 static USBD_InterruptControlTypedef s_interrupt_mute_ctrl = {
     .binfo = 0,                        // 0 (Interface request)
     .bAttribute = 1,                   // 0x1 (CUR request)
-    .wValueLowByte = 0,                // CN Channel Number in low byte (0 master)
+    .wValueLowByte = CHANNEL_MASTER,        // CN Channel Number in low byte (0 master)
     .wValueHighByte = FU_MUTE_CONTROL, // CS Channel Selector 0X1 FU_MUTE_CONTROL OR 0x2 FU_VOLUME_CONTROL
     .wIndexLowByte = AC_INTERFACE_NUM, // interface 0
     .wIndexHighByte = FEATURE_UNIT_ID, // 0x2 FEATURE UNIT ID
@@ -80,7 +80,7 @@ void USBD_AUDIO_signal_mute_change(void)
     // }
     
     // signal_mute_locked = true;
-    s_Haudio.interrupt_mute_ctrl->wValueLowByte = 0; // master channel only
+    s_Haudio.interrupt_mute_ctrl->wValueLowByte = CHANNEL_MASTER; // master channel only
     LOG_DBG("Interrupt message : 0x%02X%02X %02X%02X %02X%02X",
             s_Haudio.interrupt_mute_ctrl->binfo,
             s_Haudio.interrupt_mute_ctrl->bAttribute,
@@ -103,6 +103,15 @@ void USBD_AUDIO_signal_mute_change(void)
 void USBD_AUDIO_signal_volume_change(channel_t channel)
 {
     s_Haudio.interrupt_volume_ctrl->wValueLowByte = channel;
+
+    LOG_DBG("Interrupt message : 0x%02X%02X %02X%02X %02X%02X",
+            s_Haudio.interrupt_mute_ctrl->binfo,
+            s_Haudio.interrupt_mute_ctrl->bAttribute,
+            s_Haudio.interrupt_mute_ctrl->wValueLowByte,
+            s_Haudio.interrupt_mute_ctrl->wValueHighByte,
+            s_Haudio.interrupt_mute_ctrl->wIndexLowByte,
+            s_Haudio.interrupt_mute_ctrl->wIndexHighByte);
+
     if (USBD_LL_Transmit(&hUsbDeviceHS, INTERRUPT_EP_ADDR,
                           (uint8_t *)s_Haudio.interrupt_volume_ctrl,
                           INTERRUPT_PACKET_SIZE) != USBD_OK)
@@ -784,17 +793,19 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
     case FEATURE_UNIT_ID:
         if (HIBYTE(req->wValue) == FU_VOLUME_CONTROL)
         {
+            // Use resquested values to match interrupt sent on change.
+            // Send new volume even if not applied yet
             if (LOBYTE(req->wValue) == 1)
             {
-                LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u", 
-                    LOBYTE(req->wValue), es9038q2m_configured_volume_ch1, req->wLength);
-                SET_DATA(pbuf, int16_t, es9038q2m_configured_volume_ch1);
+                LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u",
+                         LOBYTE(req->wValue), requested_volume_ch1, req->wLength);
+                SET_DATA(pbuf, int16_t, requested_volume_ch1);
             }
             else if (LOBYTE(req->wValue) == 2)
             {
                 LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u", 
-                    LOBYTE(req->wValue), es9038q2m_configured_volume_ch2, req->wLength);
-                SET_DATA(pbuf, int16_t, es9038q2m_configured_volume_ch2);
+                    LOBYTE(req->wValue), requested_volume_ch2, req->wLength);
+                SET_DATA(pbuf, int16_t, requested_volume_ch2);
             }
             else
             { // 0 could be master channel, but we don't support it
@@ -806,9 +817,11 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
         }
         else if (HIBYTE(req->wValue) == FU_MUTE_CONTROL)
         {
+            // Use resquested values to match interrupt sent on change.
+            // Send new mute even if not applied yet
             LOG_WARN("GetCurrent: mute state requested by host, channel=%u, returning %s, size=%u",
-                     LOBYTE(req->wValue), es9038q2m_configured_mute ? "ON" : "OFF", req->wLength);
-            SET_DATA(pbuf, uint8_t, es9038q2m_configured_mute ? 1 : 0); // indicate to windows the mute state to display at startup, should reflect the internal state.
+                     LOBYTE(req->wValue), requested_mute ? "ON" : "OFF", req->wLength);
+            SET_DATA(pbuf, uint8_t, requested_mute ? 1 : 0); // indicate to windows the mute state to display at startup, should reflect the internal state.
             get_current_mute_received = true;
         }
         else

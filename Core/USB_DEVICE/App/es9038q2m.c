@@ -89,8 +89,8 @@ void ES9038Q2M_DAC_Volume_change(int8_t delta)
 {
     ES9038Q2M_DAC_Volume_set(requested_volume_ch1 + delta * AUDIO_VOL_RES, CHANNEL_1);
     ES9038Q2M_DAC_Volume_set(requested_volume_ch2 + delta * AUDIO_VOL_RES, CHANNEL_2);
-    // USBD_AUDIO_signal_volume_change(CHANNEL_1);
-    // USBD_AUDIO_signal_volume_change(CHANNEL_2);
+    // Avoid to send two interrupts at the same time. Works ok, get cur done on both channels.
+    USBD_AUDIO_signal_volume_change(CHANNEL_1);
 }
 
 uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol, uint8_t channel) /* Q8.8 dB from USB Audio class */

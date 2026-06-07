@@ -34,9 +34,12 @@
 #define ES9038Q2M_STAT_I2S_VALID    (1U << 1)
 #define ES9038Q2M_STAT_DSD_VALID    (1U << 0)
 
-extern volatile int16_t es9038q2m_configured_volume_ch1;
-extern volatile int16_t es9038q2m_configured_volume_ch2;
-extern volatile bool es9038q2m_configured_mute;
+extern volatile int16_t requested_volume_ch1;
+extern volatile int16_t requested_volume_ch2;
+// extern volatile int16_t es9038q2m_configured_volume_ch1;
+// extern volatile int16_t es9038q2m_configured_volume_ch2;
+extern volatile bool requested_mute;
+// extern volatile bool es9038q2m_configured_mute;
 extern volatile bool es9038q2m_audio_stop_pending;
 extern const AUDIO_CodecTypeDef es9038q2m_instance;
 

@@ -206,17 +206,17 @@ typedef struct
 {
     USBD_AUDIO_ControlTypeDef control;
     uint32_t pkt_buf[USB_HS_MAX_PACKET_SIZE >> 2];
-    AudioBuffer aud_buf;
     uint32_t buf_cap;
     uint32_t alt_setting;
     uint32_t sam_freq;
     uint32_t feedback_base;
     uint32_t feedback_value;
+    USBD_InterruptControlTypedef *interrupt_volume_ctrl;
+    USBD_InterruptControlTypedef *interrupt_mute_ctrl;
+    AudioBuffer aud_buf;
     uint8_t bit_depth;
     uint8_t stream_type;
     uint8_t state;
-    USBD_InterruptControlTypedef *interrupt_volume_ctrl;
-    USBD_InterruptControlTypedef *interrupt_mute_ctrl;
 } USBD_AUDIO_HandleTypeDef;
 
 typedef struct
@@ -258,6 +258,7 @@ extern USBD_ClassTypeDef USBD_AUDIO;
 
 typedef enum _channel_t
 {
+    CHANNEL_MASTER = 0,
     CHANNEL_1 = 1, // left
     CHANNEL_2 = 2  // right
 } channel_t;
