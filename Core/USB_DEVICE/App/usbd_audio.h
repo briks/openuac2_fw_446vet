@@ -182,7 +182,7 @@ typedef enum
  * @{
  */
 
-typedef struct usb_InterruptControl
+typedef struct __attribute__((packed)) usb_InterruptControl
 {
     uint8_t binfo;      // 0 (Interface request)
     uint8_t bAttribute; // 0x1 (CUR request)
@@ -262,7 +262,7 @@ typedef enum _channel_t
     CHANNEL_2 = 2  // right
 } channel_t;
 
-void USBD_AUDIO_signal_mute_change(channel_t channel);
+void USBD_AUDIO_signal_mute_change(void);
 void USBD_AUDIO_signal_volume_change(channel_t channel);
 
 uint8_t USBD_AUDIO_RegisterInterface(USBD_HandleTypeDef *pdev,

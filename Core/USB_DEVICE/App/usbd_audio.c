@@ -11,10 +11,10 @@
 #error "Composite device is unsupported."
 #endif
 
-#define LOG_LEVEL LOG_LEVEL_DBG// Set to LOG_LEVEL_DEBUG for full logs
+#define LOG_LEVEL LOG_LEVEL_DBG // Set to LOG_LEVEL_DBG for full logs
 #include "log.h"
 
-volatile bool signal_mute_locked = true;
+// volatile bool signal_mute_locked = true;
 
 static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
 static uint8_t USBD_AUDIO_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
@@ -71,23 +71,33 @@ USBD_ClassTypeDef USBD_AUDIO =
   USBD_AUDIO_GetDeviceQualifierDesc,
 };
 
-void USBD_AUDIO_signal_mute_change(channel_t channel)
+void USBD_AUDIO_signal_mute_change(void)
 {
-    if (signal_mute_locked)
-    {
-        LOG_WARN("mute change already signaled, skipping new signal");
-        return;
-    }
+    // if (signal_mute_locked)
+    // {
+    //     LOG_WARN("mute change already signaled, skipping new signal");
+    //     return;
+    // }
     
-    signal_mute_locked = true;
-    s_Haudio.interrupt_mute_ctrl->wValueLowByte = channel;
+    // signal_mute_locked = true;
+    s_Haudio.interrupt_mute_ctrl->wValueLowByte = 0; // master channel only
+    LOG_DBG("Interrupt message : 0x%02X%02X %02X%02X %02X%02X",
+            s_Haudio.interrupt_mute_ctrl->binfo,
+            s_Haudio.interrupt_mute_ctrl->bAttribute,
+            s_Haudio.interrupt_mute_ctrl->wValueLowByte,
+            s_Haudio.interrupt_mute_ctrl->wValueHighByte,
+            s_Haudio.interrupt_mute_ctrl->wIndexLowByte,
+            s_Haudio.interrupt_mute_ctrl->wIndexHighByte);
+
+    // force data0
+    // USBD_LL_ClearStallEP(&hUsbDeviceHS, INTERRUPT_EP_ADDR);
     if (USBD_LL_Transmit(&hUsbDeviceHS, INTERRUPT_EP_ADDR,
                           (uint8_t *)s_Haudio.interrupt_mute_ctrl,
                           INTERRUPT_PACKET_SIZE) != USBD_OK)
     {
         LOG_ERR("interrupt EP busy on mute signal (host will resync)");
     }
-    LOG_WARN("signaled mute change: %d.", channel);
+    LOG_WARN("signaled mute change on master channel.");
 }
 
 void USBD_AUDIO_signal_volume_change(channel_t channel)
@@ -234,9 +244,6 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
     USBD_LL_PrepareReceive(pdev, STREAMING_EP_ADDR, (uint8_t *)haudio->pkt_buf, USB_HS_MAX_PACKET_SIZE);
     USBD_LL_Transmit(pdev, FEEDBACK_EP_ADDR, (uint8_t *)&haudio->feedback_value, FEEDBACK_PACKET_SIZE);
 
-    // USBD_AUDIO_signal_volume_change(CHANNEL_1);
-    // USBD_AUDIO_signal_volume_change(CHANNEL_2);
-
     LOG_INFO("USB audio class init OK (HS)");
     return USBD_OK;
 }
@@ -275,6 +282,8 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
     uint16_t len;
     uint8_t *pbuf;
     uint16_t status_info = 0U;
+    uint8_t idx;
+    uint8_t ep_addr;
 
     switch (req->bmRequest & USB_REQ_TYPE_MASK)
     {
@@ -383,6 +392,43 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
             break;
 
         case USB_REQ_CLEAR_FEATURE:
+            LOG_WARN("SetupClearFeature: feature=0x%04X, index/endpoint=0x%04X", req->wValue, req->wIndex);
+            ep_addr = LOBYTE(req->wIndex);
+            switch (pdev->dev_state)
+            {
+            case USBD_STATE_ADDRESSED:
+                if ((ep_addr != 0x00U) && (ep_addr != 0x80U))
+                {
+                    LOG_ERR("ClearFeature ADDRESSED, call StallEP");
+                    (void)USBD_LL_StallEP(pdev, ep_addr);
+                    (void)USBD_LL_StallEP(pdev, 0x80U);
+                }
+                else
+                {
+                    LOG_ERR("ClearFeature else ADDRESSED, call USBD_CtlError");
+                    USBD_CtlError(pdev, req);
+                }
+                break;
+
+            case USBD_STATE_CONFIGURED:
+                if (req->wValue == USB_FEATURE_EP_HALT)
+                {
+                    if ((ep_addr & 0x7FU) != 0x00U)
+                    {
+                        LOG_ERR("ClearFeature CONFIGURED, call FlushEP + ClearStallEP + sendStatus");
+                        USBD_LL_FlushEP(pdev, ep_addr);
+                        (void)USBD_LL_ClearStallEP(pdev, ep_addr);
+                    }
+                    (void)USBD_CtlSendStatus(pdev);
+                    USBD_LL_StallEP(pdev, ep_addr);
+                    USBD_LL_ClearStallEP(pdev, ep_addr);
+                }
+                break;
+
+            default:
+                goto ret_err;
+                break;
+            }
             break;
 
         default:
@@ -795,10 +841,10 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
 
     USBD_CtlSendData(pdev, haudio->control.data, MIN(req->wLength, USB_MAX_EP0_SIZE));
     
-    if (get_current_mute_received)
-    {
-        signal_mute_locked = false;
-    }
+    // if (get_current_mute_received)
+    // {
+    //     signal_mute_locked = true;
+    // }
 }
 
 static void AUDIO_REQ_SetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req)

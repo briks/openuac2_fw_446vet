@@ -986,14 +986,14 @@ void StartOnOff(void const *argument)
             LL_GPIO_SetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
             // LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
             EtatAmp = true;
-            ES9038Q2M_DAC_Mute_set(0); // unmute at power on
+            ES9038Q2M_DAC_SetMute_Force(false); // unmute at power on
             LOG_INFO("amp ON, request unmute");
         }
         if (!CommandeAmp && EtatAmp)
         {
             LOG_WARN("amp power OFF sequence");
             EtatAmp = false;
-            ES9038Q2M_DAC_SetMute_Force();
+            ES9038Q2M_DAC_SetMute_Force(true);
             HAL_TIM_Encoder_Stop(&htim4, TIM_CHANNEL_ALL);
             LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
             LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);

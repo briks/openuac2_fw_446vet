@@ -48,7 +48,7 @@ typedef struct
 	uint8_t (*DAC_Format)(uint8_t);
 	uint8_t (*DAC_Stop)(void);
 	uint8_t (*DAC_Freq)(uint32_t);
-	uint8_t (*DAC_Mute)(uint8_t);
+	uint8_t (*DAC_Mute)(bool);
 	uint8_t (*DAC_Volume)(int16_t, uint8_t);
 } AUDIO_CodecTypeDef;
 

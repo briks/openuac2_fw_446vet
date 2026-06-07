@@ -176,7 +176,7 @@ static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 	case AUDIO_CMD_MUTE:
         if (codec->DAC_Mute != NULL)
         {
-            codec->DAC_Mute(*pbuf);
+            codec->DAC_Mute(*pbuf == 1);
         }
 		break;
 

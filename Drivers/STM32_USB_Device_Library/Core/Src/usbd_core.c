@@ -19,6 +19,9 @@
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_core.h"
 
+#define LOG_LEVEL LOG_LEVEL_INFO
+#include "log.h"
+
 #ifdef USE_USBD_COMPOSITE
 #include "usbd_composite_builder.h"
 #endif /* USE_USBD_COMPOSITE */
@@ -721,6 +724,7 @@ USBD_StatusTypeDef USBD_LL_DataInStage(USBD_HandleTypeDef *pdev,
               pdev->pClass[0]->EP0_TxSent(pdev);
             }
           }
+          LOG_DBG("USBD_LL_DataInStage: EP0_DATA_IN, transfer completed");
           (void)USBD_LL_StallEP(pdev, 0x80U);
           (void)USBD_CtlReceiveStatus(pdev);
         }

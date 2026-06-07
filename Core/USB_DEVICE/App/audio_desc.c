@@ -87,15 +87,15 @@ const uint8_t USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZE] __attribute__((alig
         FEATURE_UNIT,      // bDescriptorSubtype
         FEATURE_UNIT_ID,   // bUnitID
         INPUT_TERMINAL_ID, // bSourceID
-        0x0f,              // bmaControls(ch0) mute volume
+        0x03,              // bmaControls(ch0) mute b11 = read/write
         0x00,
         0x00,
         0x00,
-        0x0f,              // bmaControls(ch1) mute volume
+        0x0C,              // bmaControls(ch1) volume b11 << 2
         0x00,
         0x00,
         0x00,
-        0x0f,              // bmaControls(ch2) mute volume
+        0x0C,              // bmaControls(ch2) volume
         0x00,
         0x00,
         0x00,

@@ -46,8 +46,8 @@ uint8_t ES9038Q2M_DAC_DeInit(void);
 /* Request a volume change by a relative amount, as detected by the encoder */
 void ES9038Q2M_DAC_Volume_change(int8_t delta);
 uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol, uint8_t channel);
-uint8_t ES9038Q2M_DAC_Mute_set(uint8_t mute);
-void    ES9038Q2M_DAC_SetMute_Force(void);
+uint8_t ES9038Q2M_DAC_Mute_set(bool mute);
+void ES9038Q2M_DAC_SetMute_Force(bool mute);
 uint8_t ES9038Q2M_DAC_Format_set(uint8_t format);
 uint8_t ES9038Q2M_DAC_Play(void);
 uint8_t ES9038Q2M_DAC_Stop(void);

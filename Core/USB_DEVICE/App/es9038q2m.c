@@ -15,7 +15,7 @@ volatile int16_t requested_volume_ch2 = AUDIO_CUR_VOL;                /* set at 
 volatile int16_t es9038q2m_configured_volume_ch1 = AUDIO_CUR_VOL + 1; /* differ → force apply on first ProcessEvents */
 volatile int16_t es9038q2m_configured_volume_ch2 = AUDIO_CUR_VOL + 1; /* differ → force apply on first ProcessEvents */
 volatile bool requested_mute = true;                                  /* unmuted when amp powers on */
-volatile bool es9038q2m_configured_mute = true;                       /* set to true at init since amp is off */
+volatile bool es9038q2m_configured_mute = false;                      /* will be switched at startup since amp is off */
 volatile bool es9038q2m_audio_stop_pending = false;
 
 AUDIO_FormatTypeDef requested_format  = AUDIO_FORMAT_PCM;
@@ -75,7 +75,7 @@ uint8_t ES9038Q2M_DAC_Init(void)
 
 
     /* Start muted; will unmute when amp powers on (even if host starts unmuted). */
-    ES9038Q2M_DAC_SetMute_Force();
+    ES9038Q2M_DAC_Mute_set(true);
     return 0;
 }
 
@@ -89,6 +89,8 @@ void ES9038Q2M_DAC_Volume_change(int8_t delta)
 {
     ES9038Q2M_DAC_Volume_set(requested_volume_ch1 + delta * AUDIO_VOL_RES, CHANNEL_1);
     ES9038Q2M_DAC_Volume_set(requested_volume_ch2 + delta * AUDIO_VOL_RES, CHANNEL_2);
+    // USBD_AUDIO_signal_volume_change(CHANNEL_1);
+    // USBD_AUDIO_signal_volume_change(CHANNEL_2);
 }
 
 uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol, uint8_t channel) /* Q8.8 dB from USB Audio class */
@@ -109,14 +111,21 @@ uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol, uint8_t channel) /* Q8.8 dB from U
     return 0;
 }
 
-uint8_t ES9038Q2M_DAC_Mute_set(uint8_t mute)
+/* From host, no signaling */
+uint8_t ES9038Q2M_DAC_Mute_set(bool mute)
 {
+    if (!EtatAmp && !mute)
+    {
+        LOG_WARN("DAC_Mute_set request while amp is off, forcing mute");
+        requested_mute = true;
+        return 0; // could return USBD_FAIL ?
+    }
     LOG_WARN("DAC_Mute_set request: %s", mute ? "MUTED" : "UNMUTED");
-    requested_mute = (mute == 1);
+    requested_mute = mute;
     return 0;
 }
 
-HAL_StatusTypeDef ES9038Q2M_DAC_SetMute_Immediate(uint8_t mute)
+HAL_StatusTypeDef ES9038Q2M_DAC_SetMute_Immediate(bool mute)
 {
     HAL_StatusTypeDef st = HAL_OK;
 
@@ -136,21 +145,18 @@ HAL_StatusTypeDef ES9038Q2M_DAC_SetMute_Immediate(uint8_t mute)
         }
     } while (st == HAL_BUSY);
 
-    // Windows set and request only on channel 1
-    //USBD_AUDIO_signal_mute_change(0);
-    USBD_AUDIO_signal_mute_change(CHANNEL_1);
-    // USBD_AUDIO_signal_mute_change(CHANNEL_2);
-
     return st;
 }
 
-/* Force mute when amp powers off, even if host requested unmute. */
-void ES9038Q2M_DAC_SetMute_Force(void)
+/* Force mute when amp powers on/off.
+ Not a host request, so signal mute change to host */
+void ES9038Q2M_DAC_SetMute_Force(bool mute)
 {
-    LOG_WARN("DAC_SetMute_Force");
-    requested_mute = true;
-    es9038q2m_configured_mute = true;
-    ES9038Q2M_DAC_SetMute_Immediate(true);
+    LOG_WARN("DAC_SetMute_Force %s", mute ? "MUTE" : "UNMUTE");
+    requested_mute = mute;
+    es9038q2m_configured_mute = mute;
+    ES9038Q2M_DAC_SetMute_Immediate(mute);
+    USBD_AUDIO_signal_mute_change();
 }
 
 uint8_t ES9038Q2M_DAC_Format_set(uint8_t format)
@@ -232,7 +238,6 @@ void ES9038Q2M_ProcessEvents(void)
         play = 0;
     }
 
-    requested_mute = requested_mute || !EtatAmp;
     if (requested_mute != es9038q2m_configured_mute)
     {
         if (ES9038Q2M_I2C_HANDLE.State == HAL_I2C_STATE_READY) 
@@ -263,13 +268,11 @@ void ES9038Q2M_ProcessEvents(void)
         I2C_Status = HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
                                        ES9038Q2M_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
                                        &reg_val, 1, TIMEOUT_I2C_DELAY);
-        //USBD_AUDIO_signal_volume_change(CHANNEL_1);
 
         es9038q2m_configured_volume_ch2 = requested_volume_ch2;
         reg_val = convert_vol_to_register(es9038q2m_configured_volume_ch2);
         I2C_Status = HAL_I2C_Mem_Write(&ES9038Q2M_I2C_HANDLE, ES9038Q2M_I2C_DEV_ADDR,
                                        ES9038Q2M_REG16_ADDR, I2C_MEMADD_SIZE_8BIT,
                                        &reg_val, 1, TIMEOUT_I2C_DELAY);
-        //USBD_AUDIO_signal_volume_change(CHANNEL_2);
     }
 }
