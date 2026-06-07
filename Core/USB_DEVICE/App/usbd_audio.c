@@ -38,7 +38,7 @@ static USBD_AUDIO_HandleTypeDef s_Haudio;
 static USBD_InterruptControlTypedef s_interrupt_volume_ctrl = {
     .binfo = 0,                          // 0 (Interface request)
     .bAttribute = 1,                     // 0x1 (CUR request)
-    .wValueLowByte = CHANNEL_1,          // CN Channel Number in low byte (ok on channel1 only)
+    .wValueLowByte = CHANNEL_MASTER,     // CN Channel Number in low byte (0 master)
     .wValueHighByte = FU_VOLUME_CONTROL, // CS Channel Selector 0X1 FU_MUTE_CONTROL OR 0x2 FU_VOLUME_CONTROL
     .wIndexLowByte = AC_INTERFACE_NUM,   // interface 0
     .wIndexHighByte = FEATURE_UNIT_ID,   // 0x2 FEATURE UNIT ID
@@ -102,15 +102,16 @@ void USBD_AUDIO_signal_mute_change(void)
 
 void USBD_AUDIO_signal_volume_change(channel_t channel)
 {
+
     s_Haudio.interrupt_volume_ctrl->wValueLowByte = channel;
 
     LOG_DBG("Interrupt message : 0x%02X%02X %02X%02X %02X%02X",
-            s_Haudio.interrupt_mute_ctrl->binfo,
-            s_Haudio.interrupt_mute_ctrl->bAttribute,
-            s_Haudio.interrupt_mute_ctrl->wValueLowByte,
-            s_Haudio.interrupt_mute_ctrl->wValueHighByte,
-            s_Haudio.interrupt_mute_ctrl->wIndexLowByte,
-            s_Haudio.interrupt_mute_ctrl->wIndexHighByte);
+            s_Haudio.interrupt_volume_ctrl->binfo,
+            s_Haudio.interrupt_volume_ctrl->bAttribute,
+            s_Haudio.interrupt_volume_ctrl->wValueLowByte,
+            s_Haudio.interrupt_volume_ctrl->wValueHighByte,
+            s_Haudio.interrupt_volume_ctrl->wIndexLowByte,
+            s_Haudio.interrupt_volume_ctrl->wIndexHighByte);
 
     if (USBD_LL_Transmit(&hUsbDeviceHS, INTERRUPT_EP_ADDR,
                           (uint8_t *)s_Haudio.interrupt_volume_ctrl,
@@ -118,7 +119,7 @@ void USBD_AUDIO_signal_volume_change(channel_t channel)
     {
         LOG_ERR("interrupt EP busy on volume signal");
     }
-    LOG_INFO("signaled volume change: %d", channel);
+    LOG_INFO("signaled volume change on CN %d", channel);
 }
 
 static uint8_t USBD_AUDIO_GetStreamType(USBD_HandleTypeDef* pdev)
@@ -424,13 +425,22 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
                 {
                     if ((ep_addr & 0x7FU) != 0x00U)
                     {
-                        LOG_ERR("ClearFeature CONFIGURED, call FlushEP + ClearStallEP + sendStatus");
                         USBD_LL_FlushEP(pdev, ep_addr);
                         (void)USBD_LL_ClearStallEP(pdev, ep_addr);
+
+                        if (ep_addr == INTERRUPT_EP_ADDR)
+                        {
+                            /* Full re-init: resets PCD xfer state & data toggle */
+                            USBD_LL_CloseEP(pdev, INTERRUPT_EP_ADDR);
+                            USBD_LL_OpenEP(pdev, INTERRUPT_EP_ADDR,
+                               USBD_EP_TYPE_INTR, INTERRUPT_PACKET_SIZE);
+                            pdev->ep_in[INTERRUPT_EP_NUM].is_used = 1U;
+                            pdev->ep_in[INTERRUPT_EP_NUM].bInterval = INTERRUPT_HS_BINTERVAL;
+
+                            LOG_WARN("Interrupt EP fully reopened after ClearFeature");
+                        }
                     }
                     (void)USBD_CtlSendStatus(pdev);
-                    USBD_LL_StallEP(pdev, ep_addr);
-                    USBD_LL_ClearStallEP(pdev, ep_addr);
                 }
                 break;
 
@@ -795,13 +805,19 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
         {
             // Use resquested values to match interrupt sent on change.
             // Send new volume even if not applied yet
-            if (LOBYTE(req->wValue) == 1)
+            if (LOBYTE(req->wValue) == CHANNEL_MASTER)
+            {
+                LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u",
+                         LOBYTE(req->wValue), requested_volume_ch1, req->wLength);
+                SET_DATA(pbuf, int16_t, (requested_volume_ch1 + requested_volume_ch2) / 2);
+            }
+            else if (LOBYTE(req->wValue) == CHANNEL_1)
             {
                 LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u",
                          LOBYTE(req->wValue), requested_volume_ch1, req->wLength);
                 SET_DATA(pbuf, int16_t, requested_volume_ch1);
             }
-            else if (LOBYTE(req->wValue) == 2)
+            else if (LOBYTE(req->wValue) == CHANNEL_2)
             {
                 LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u", 
                     LOBYTE(req->wValue), requested_volume_ch2, req->wLength);

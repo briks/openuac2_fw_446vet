@@ -50,7 +50,7 @@ const uint8_t USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZE] __attribute__((alig
         FUNCTION_SUBCLASS_UNDEFINED, // bCategory
         LOBYTE(AUDIO_WTOTALLENGTH),  // wTotalLength of this header + clocks, sources, unit and terminal below
         HIBYTE(AUDIO_WTOTALLENGTH),  //                               , could be 256
-        0x00, // bmControls
+        0x00,                        // bmControls
 
         // Clock source -------------------------------------------
         0x08,            // bLength
@@ -87,15 +87,15 @@ const uint8_t USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZE] __attribute__((alig
         FEATURE_UNIT,      // bDescriptorSubtype
         FEATURE_UNIT_ID,   // bUnitID
         INPUT_TERMINAL_ID, // bSourceID
-        0x03,              // bmaControls(ch0) mute b11 = read/write
+        0x0F, // bmaControls(master) mute b11 = read/write, volume b11 << 2
         0x00,
         0x00,
         0x00,
-        0x0C,              // bmaControls(ch1) volume b11 << 2
+        0x0F, // bmaControls(ch1) mute and volume
         0x00,
         0x00,
         0x00,
-        0x0C,              // bmaControls(ch2) volume
+        0x0F, // bmaControls(ch2) mute and volume
         0x00,
         0x00,
         0x00,

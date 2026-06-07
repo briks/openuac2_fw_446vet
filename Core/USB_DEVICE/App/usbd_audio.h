@@ -63,7 +63,7 @@ extern "C" {
 #define AUDIO_CUR_VOL ((int16_t)(-20 * 256)) /* startup at -20 dB */
 #define FEEDBACK_HS_BINTERVAL           4U  // for 8µframe or 1 ms
 #define STREAMING_HS_BINTERVAL          1U  // for 1µframe of 1/8 ms, Interval for polling endpoint for data transfers
-#define INTERRUPT_HS_BINTERVAL          5U  // for 16µframe or 2 ms
+#define INTERRUPT_HS_BINTERVAL          4U  // for 8µframe or 1ms
 
 #define AUDIO_WTOTALLENGTH              64U
 
@@ -151,48 +151,49 @@ extern "C" {
     _ptr += sizeof(_type)
 
     /* Audio Commands enumeration */
-    typedef enum {
+    typedef enum
+    {
         AUDIO_CMD_PLAY,
         AUDIO_CMD_FORMAT,
         AUDIO_CMD_STOP,
         AUDIO_CMD_FREQ,
         AUDIO_CMD_MUTE,
+        AUDIO_CMD_VOLUME_MASTER,
         AUDIO_CMD_VOLUME_CH1, // left
         AUDIO_CMD_VOLUME_CH2, // right
     } AUDIO_CommandTypeDef;
 
-typedef enum
-{
-    AUDIO_FORMAT_PCM,
-    AUDIO_FORMAT_DSD
-} AUDIO_FormatTypeDef;
+    typedef enum
+    {
+        AUDIO_FORMAT_PCM,
+        AUDIO_FORMAT_DSD
+    } AUDIO_FormatTypeDef;
 
-typedef enum
-{
-    AUDIO_STATE_STOPPED,
-    AUDIO_STATE_PLAYING,
-} AUDIO_StateTypeDef;
+    typedef enum
+    {
+        AUDIO_STATE_STOPPED,
+        AUDIO_STATE_PLAYING,
+    } AUDIO_StateTypeDef;
 
-/**
- * @}
- */
+    /**
+     * @}
+     */
 
+    /** @defgroup USBD_CORE_Exported_TypesDefinitions
+     * @{
+     */
 
-/** @defgroup USBD_CORE_Exported_TypesDefinitions
- * @{
- */
-
-typedef struct __attribute__((packed)) usb_InterruptControl
-{
-    uint8_t binfo;      // 0 (Interface request)
-    uint8_t bAttribute; // 0x1 (CUR request)
-    //uint16_t wValue;
-    uint8_t wValueLowByte;  // CN Channel Number in low byte (0 master)
-    uint8_t wValueHighByte; // CS Channel Selector 0X1 FU_MUTE_CONTROL OR 0x2 FU_VOLUME_CONTROL
-    //uint16_t wIndex;    
-    uint8_t wIndexLowByte;  // interface 0
-    uint8_t wIndexHighByte; // 0x2 FEATURE UNIT ID
-} USBD_InterruptControlTypedef;
+    typedef struct __attribute__((packed)) usb_InterruptControl
+    {
+        uint8_t binfo;      // 0 (Interface request)
+        uint8_t bAttribute; // 0x1 (CUR request)
+        // uint16_t wValue;
+        uint8_t wValueLowByte;  // CN Channel Number in low byte (0 master)
+        uint8_t wValueHighByte; // CS Channel Selector 0X1 FU_MUTE_CONTROL OR 0x2 FU_VOLUME_CONTROL
+        // uint16_t wIndex;
+        uint8_t wIndexLowByte;  // interface 0
+        uint8_t wIndexHighByte; // 0x2 FEATURE UNIT ID
+    } USBD_InterruptControlTypedef;
 
 typedef struct
 {

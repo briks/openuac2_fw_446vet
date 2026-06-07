@@ -180,16 +180,17 @@ static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
         }
 		break;
 
+    case AUDIO_CMD_VOLUME_MASTER:
 	case AUDIO_CMD_VOLUME_CH1:
     case AUDIO_CMD_VOLUME_CH2:
-        if (codec->DAC_Volume != NULL && size >= 2)
+        if (codec->DAC_Volume != NULL && size == 2)
         {
             /* little-endian q8.8 */
             int16_t vol = (int16_t)pbuf[0];
             vol |= ((int16_t)pbuf[1]) << 8;
             LOG_INFO("Volume command CN %d with vol %d",
-                     AUDIO_CMD_VOLUME_CH1 ? CHANNEL_1 : CHANNEL_2, vol);
-            codec->DAC_Volume(vol, cmd == AUDIO_CMD_VOLUME_CH1 ? CHANNEL_1 : CHANNEL_2);
+                     cmd - AUDIO_CMD_VOLUME_MASTER, vol);
+            codec->DAC_Volume(vol, cmd - AUDIO_CMD_VOLUME_MASTER);
         }
         else
         {
