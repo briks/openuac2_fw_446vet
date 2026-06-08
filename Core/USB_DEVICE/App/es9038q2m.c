@@ -141,10 +141,15 @@ HAL_StatusTypeDef ES9038Q2M_DAC_SetMute_Immediate(bool mute)
     if (mute)
     {
         LL_GPIO_ResetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
+        if (EtatAmp)
+        {
+            LL_GPIO_SetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
+        }
     }
     else
     {
         LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
+        LL_GPIO_ResetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
     }
 
     do
