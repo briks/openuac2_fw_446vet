@@ -1,0 +1,9 @@
+{
+    "configurations": [
+        {
+            "name": "STM32",
+            "compileCommands": "${workspaceFolder}/build/debug/build/compile_commands.json"
+        }
+    ],
+    "version": 4
+}

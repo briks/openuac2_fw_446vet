@@ -2,32 +2,18 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "J-Link BriXamp",
-      "type": "cppdbg",
+      "type": "jlinkgdbtarget",
       "request": "launch",
+      "name": "BriXamp - Jlink STM32",
+      "origin": "snippet",
       "cwd": "${workspaceFolder}",
-      "program": "${workspaceFolder}/build/debug/build/essais_clk.elf",
-      "MIMode": "gdb",
-      "miDebuggerPath": "C:\\ST\\STM32CubeCLT_1.15.0\\GNU-tools-for-STM32\\bin\\arm-none-eabi-gdb.exe",
-      "miDebuggerServerAddress": "localhost:2331",
-      "debugServerPath": "C:\\Program Files\\SEGGER\\JLink_V946\\JLinkGDBServerCL.exe",
-      "debugServerArgs": "-if SWD -device STM32F446VE -port 2331 -nogui",
-      "serverStarted": "Listening on TCP/IP port \\d+",
-      "stopAtConnect": true,
-      "postRemoteConnectCommands": [
+      "preBuild": "${command:st-stm32-ide-debug-launch.build}",
+      "runEntry": "main",
+      "imagesAndSymbols": [
         {
-          "text": "monitor reset"
-        },
-        {
-          "text": "load build/debug/build/essais_clk.elf"
+          "imageFileName": "${command:st-stm32-ide-debug-launch.get-projects-binary-from-context1}"
         }
-      ],
-      "logging": {
-        "engineLogging": true
-      },
-      "preLaunchTask": "Build",
-      "targetArchitecture": "arm",
-      "svdPath": "${command:vscode-embedded.st.svd}/STM32F446.svd"
+      ]
     }
   ]
 }
