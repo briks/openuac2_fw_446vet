@@ -86,7 +86,7 @@ osStaticThreadDef_t OnOffControlBlock;
 /* USER CODE BEGIN PV */
 uint32_t errors_mask = 0;
 volatile bool CommandeAmp = false;        // variable globale commande amplis on/off
-volatile bool EtatAmp = false;            // variable globale etat des amplis on/off
+volatile AmpState_t EtatAmp = AMP_OFF;    // variable globale etat des amplis on/off
 volatile int8_t last_encoder_counter = 0; // store last rotary position
 /* USER CODE END PV */
 
@@ -173,6 +173,11 @@ int main(void)
     /* Initialize all configured peripherals */
     MX_GPIO_Init();
     MX_DMA_Init();
+    /* USER CODE BEGIN after MX_GPIO_Init */
+    Leds_PWM_Init();
+    Led_G_SetBrightness(0);
+    Led_R_SetBrightness(0);
+    /* USER CODE END after MX_GPIO_Init */
     MX_I2C1_Init(&DAC_I2C_Handle);
     MX_I2S1_Init();
     MX_TIM3_Init();
@@ -192,7 +197,7 @@ int main(void)
     LOG_INFO("\\______   \\_______|__|  | __\\   \\/  /____    _____ ______| |");
     LOG_INFO(" |    |  _/\\_  __ \\  |  |/ / \\     /\\__  \\  /     \\\\____ \\ |");
     LOG_INFO(" |    |   \\ |  | \\/  |    <  /     \\ / __ \\|  Y Y  \\  |_> >|");
-    LOG_INFO(" |______  / |__|  |__|__|_ \\/___/\\  (____  /__|_|  /   __/__");
+    LOG_INFO(" |______  / |__|  |__|__|__|_ \\/___/\\  (____  /__|_|  /   __/__");
     LOG_INFO("        \\/                \\/      \\_/    \\/      \\/|__|   \\/");
     LOG_INFO("");
     LOG_INFO("");
@@ -746,7 +751,7 @@ static void MX_GPIO_Init(void)
     LL_GPIO_ResetOutputPin(GPIOA, MUX_EN_Pin | MUX_SEL_Pin);
 
     /**/
-    GPIO_InitStruct.Pin = ANALOG_ON_Pin | Light_fire_R_Pin | Light_fire_L_Pin | Led_G_Pin | Led_R_Pin | PGA_M_Pin;
+    GPIO_InitStruct.Pin = ANALOG_ON_Pin | Light_fire_R_Pin | Light_fire_L_Pin | PGA_M_Pin;
     GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
     GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
@@ -844,6 +849,104 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+/* --- LED PWM via TIM9 -------------------------------------------------------
+ * PE5 -> TIM9_CH1 (AF3) -> Led_G
+ * PE6 -> TIM9_CH2 (AF3) -> Led_R
+ *
+ * Brightness API takes a perceptual 0..100 %.
+ * A gamma curve (gamma = 2.4) maps it to PWM duty so equal % steps
+ * look like equal brightness steps to the eye.
+ * -------------------------------------------------------------------------- */
+#define LEDS_PWM_ARR   999U
+
+/* Precomputed CCR values for 0..100 %, gamma = 2.4, output range 0..1000.
+ *   ccr[i] = round( (i/100)^2.4 * 1000 )
+ * Python to regenerate:
+ *   g = 2.4
+ *   [round((i/100)**g * 1000) for i in range(101)]
+ */
+static const uint16_t leds_gamma_lut[101] = {
+       0,    0,    0,    0,    0,    1,    1,    2,    2,    3,
+       4,    5,    6,    7,    9,   11,   12,   14,   16,   19,
+      21,   24,   26,   29,   33,   36,   39,   43,   47,   51,
+      56,   60,   65,   70,   75,   80,   86,   92,   98,  104,
+     111,  118,  125,  132,  139,  147,  155,  163,  172,  180,
+     189,  199,  208,  218,  228,  238,  249,  259,  271,  282,
+     294,  305,  317,  330,  343,  356,  369,  382,  396,  410,
+     425,  440,  455,  470,  486,  501,  518,  534,  551,  568,
+     585,  603,  621,  639,  658,  677,  696,  716,  736,  756,
+     777,  798,  819,  840,  862,  884,  907,  930,  953,  976,
+    1000
+};
+
+static inline uint32_t leds_percent_to_ccr(uint8_t percent)
+{
+    if (percent > 100U) percent = 100U;
+    return leds_gamma_lut[percent];
+}
+
+void Leds_PWM_Init(void)
+{
+    LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
+    LL_TIM_InitTypeDef  TIM_InitStruct  = {0};
+    LL_TIM_OC_InitTypeDef OC_InitStruct = {0};
+
+    /* GPIOE clock already enabled in MX_GPIO_Init, but be safe */
+    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOE);
+    LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_TIM9);
+
+    /* PE5, PE6 as AF3 (TIM9_CH1, TIM9_CH2) */
+    GPIO_InitStruct.Pin        = Led_G_Pin | Led_R_Pin;
+    GPIO_InitStruct.Mode       = LL_GPIO_MODE_ALTERNATE;
+    GPIO_InitStruct.Speed      = LL_GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Pull       = LL_GPIO_PULL_NO;
+    GPIO_InitStruct.Alternate  = LL_GPIO_AF_3;
+    LL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+    /* Time base: 1 kHz PWM, 1000 steps */
+    TIM_InitStruct.Prescaler     = 191;
+    TIM_InitStruct.CounterMode   = LL_TIM_COUNTERMODE_UP;
+    TIM_InitStruct.Autoreload    = LEDS_PWM_ARR;
+    TIM_InitStruct.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
+    LL_TIM_Init(TIM9, &TIM_InitStruct);
+    LL_TIM_EnableARRPreload(TIM9);
+
+    /* PWM mode 1, active high, start at 0% */
+    OC_InitStruct.OCMode       = LL_TIM_OCMODE_PWM1;
+    OC_InitStruct.OCState      = LL_TIM_OCSTATE_ENABLE;
+    OC_InitStruct.OCPolarity   = LL_TIM_OCPOLARITY_HIGH;
+    OC_InitStruct.CompareValue = 0;
+
+    LL_TIM_OC_Init(TIM9, LL_TIM_CHANNEL_CH1, &OC_InitStruct);
+    LL_TIM_OC_EnablePreload(TIM9, LL_TIM_CHANNEL_CH1);
+
+    LL_TIM_OC_Init(TIM9, LL_TIM_CHANNEL_CH2, &OC_InitStruct);
+    LL_TIM_OC_EnablePreload(TIM9, LL_TIM_CHANNEL_CH2);
+
+    LL_TIM_GenerateEvent_UPDATE(TIM9);  /* load preloaded registers */
+    LL_TIM_EnableCounter(TIM9);
+}
+
+void Led_G_SetBrightness(uint8_t percent)
+{
+    static uint8_t last = 0xFF;
+    if (percent > 100U) percent = 100U;
+    if (percent == last) return;
+    last = percent;
+    LL_TIM_OC_SetCompareCH1(TIM9, leds_percent_to_ccr(percent));
+}
+
+void Led_R_SetBrightness(uint8_t percent)
+{
+    static uint8_t last = 0xFF;
+    if (percent > 100U) percent = 100U;
+    if (percent == last) return;
+    last = percent;
+    LL_TIM_OC_SetCompareCH2(TIM9, leds_percent_to_ccr(percent));
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -892,7 +995,7 @@ void StartVolume(void const *argument)
     /* Infinite loop */
     for (;;)
     {
-        if (EtatAmp)
+        if (EtatAmp == AMP_ON)
         {
             int8_t counter = __HAL_TIM_GET_COUNTER(&htim4);
             if (counter != last_encoder_counter)
@@ -958,15 +1061,15 @@ void StartOnOff(void const *argument)
     for (;;)
     {
         osDelay(100);
-        if (CommandeAmp && !EtatAmp)
+        if (CommandeAmp && EtatAmp == AMP_OFF)
         {
             LOG_WARN("amp power START sequence");
-            // start encoder
+            EtatAmp = AMP_POWERING;
+
             __HAL_TIM_SET_COUNTER(&htim4, 0);
             last_encoder_counter = 0;
             HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);
-            // start Amp left& right
-            LL_GPIO_SetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
+
             LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
             LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
             osDelay(100);
@@ -977,14 +1080,15 @@ void StartOnOff(void const *argument)
             LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
             osDelay(100);
             LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
-            EtatAmp = true;
-            ES9038Q2M_DAC_SetMute_Force(false); // unmute at amps on
+
+            EtatAmp = AMP_ON;
+            ES9038Q2M_DAC_SetMute_Force(false);
             LOG_INFO("amp power ON, unmuted, let's rock...");
         }
-        if (!CommandeAmp && EtatAmp)
+        if (!CommandeAmp && EtatAmp != AMP_OFF)
         {
             LOG_WARN("amp power OFF start sequence");
-            EtatAmp = false;
+            EtatAmp = AMP_OFF;
             ES9038Q2M_DAC_SetMute_Force(true);
             HAL_TIM_Encoder_Stop(&htim4, TIM_CHANNEL_ALL);
             LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
@@ -995,7 +1099,6 @@ void StartOnOff(void const *argument)
             osDelay(100);
             LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
             LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
-            LL_GPIO_ResetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
             LOG_INFO("amp OFF, cool down.");
         }
     }

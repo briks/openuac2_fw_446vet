@@ -48,6 +48,8 @@ extern I2C_HandleTypeDef DAC_I2C_Handle;
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
+
+#define MUTE_LED_POWER 60 // in percent
 typedef enum
 {
     BLOCKING_ERROR,
@@ -55,6 +57,12 @@ typedef enum
     ERROR_MAX_NBR
 } errorNbr;
 
+typedef enum
+{
+    AMP_OFF = 0,
+    AMP_POWERING,   /* start sequence in progress (relays settling) */
+    AMP_ON
+} AmpState_t;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -63,7 +71,7 @@ typedef enum
 #define POWER_BUTTON_PRESS_MAX_TIME 1000 // in ms, max time to detect power button action
 
 extern volatile bool CommandeAmp; // variable globale commande amplis on/off
-extern volatile bool EtatAmp;     // variable globale etat des amplis on/off
+extern volatile AmpState_t EtatAmp;     // variable globale etat des amplis on/off
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -81,6 +89,11 @@ void Error_Handler_str(const char *where);
 void Error_cancel_nonBlocking(errorNbr errorBit_nBr);
 void Error_Handler_nonBlocking(char *errorStr, errorNbr errorBit_nBr);
 void MX_I2C1_Init(I2C_HandleTypeDef *hi2c);
+
+/* LED PWM API (TIM9 CH1 = Led_G on PE5, CH2 = Led_R on PE6) */
+void Leds_PWM_Init(void);                       /* call once after MX_GPIO_Init */
+void Led_G_SetBrightness(uint8_t percent);      /* 0..100 */
+void Led_R_SetBrightness(uint8_t percent);      /* 0..100 */
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
@@ -90,7 +103,7 @@ void MX_I2C1_Init(I2C_HandleTypeDef *hi2c);
 #define Light_fire_R_GPIO_Port GPIOE
 #define Light_fire_L_Pin LL_GPIO_PIN_4
 #define Light_fire_L_GPIO_Port GPIOE
-#define Led_G_Pin LL_GPIO_PIN_5 // LED red and yellow
+#define Led_G_Pin LL_GPIO_PIN_5 // LED red
 #define Led_G_GPIO_Port GPIOE
 #define Led_R_Pin LL_GPIO_PIN_6 // LED green
 #define Led_R_GPIO_Port GPIOE

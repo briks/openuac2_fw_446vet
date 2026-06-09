@@ -118,11 +118,11 @@ uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol, uint8_t channel) /* Q8.8 dB from U
 /* From host, no signaling */
 uint8_t ES9038Q2M_DAC_Mute_set(bool mute)
 {
-    if (!EtatAmp && !mute)
+    if (EtatAmp != AMP_ON && !mute)
     {
-        LOG_WARN("DAC_Mute_set request while amp is off, forcing mute");
+        LOG_WARN("DAC_Mute_set request while amp not ON, forcing mute");
         requested_mute = true;
-        return 0; // could return USBD_FAIL ?
+        return 0;
     }
     LOG_INFO("DAC_Mute_set request: %s", mute ? "MUTED" : "UNMUTED");
     requested_mute = mute;
@@ -137,20 +137,6 @@ HAL_StatusTypeDef ES9038Q2M_DAC_SetMute_Immediate(bool mute)
 
     /* REG7: 0x81 = mute, 0x80 = unmute (filter bw + system mute) */
     registre = mute ? 0x81 : 0x80;
-
-    if (mute)
-    {
-        LL_GPIO_ResetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
-        if (EtatAmp)
-        {
-            LL_GPIO_SetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
-        }
-    }
-    else
-    {
-        LL_GPIO_SetOutputPin(Led_R_GPIO_Port, Led_R_Pin);
-        LL_GPIO_ResetOutputPin(Led_G_GPIO_Port, Led_G_Pin);
-    }
 
     do
     {
@@ -213,6 +199,44 @@ uint8_t convert_vol_to_register(int16_t volume_q88)
     return (uint8_t)attenuation;
 }
 
+
+/* Under the Amps LEDs:
+ *   Green: volume-driven (avg of L/R requested volumes), off when muted
+ *          or amp off. Linear in dB; gamma LUT in the LED API handles
+ *          perceptual linearity.
+ *   Red  : on (dim) only when amp is on AND muted; off otherwise.
+ */
+static void ES9038Q2M_UpdateLeds(void)
+{
+    uint8_t g_pct, r_pct;
+
+    if (EtatAmp == AMP_OFF)
+    {
+        g_pct = 0;
+        r_pct = 0;
+    }
+    else if (requested_mute)
+    {
+        g_pct = MUTE_LED_POWER;
+        r_pct = 0;
+    }
+    else
+    {
+        int32_t avg = ((int32_t)requested_volume_ch1 +
+                       (int32_t)requested_volume_ch2) / 2;
+
+        if (avg < AUDIO_MIN_VOL) avg = AUDIO_MIN_VOL;
+        if (avg > AUDIO_MAX_VOL) avg = AUDIO_MAX_VOL;
+
+        int32_t span = (int32_t)AUDIO_MAX_VOL - (int32_t)AUDIO_MIN_VOL;
+        r_pct = (uint8_t)(((avg - AUDIO_MIN_VOL) * 100 + (span / 2)) / span);
+        g_pct = 0;
+    }
+
+    Led_G_SetBrightness(g_pct);
+    Led_R_SetBrightness(r_pct);
+}
+
 void ES9038Q2M_ProcessEvents(void)
 {
     /* Process audio events in task context, in order of priority.
@@ -227,6 +251,9 @@ void ES9038Q2M_ProcessEvents(void)
 
     osDelay(5); // ms
     cnt++;
+
+    ES9038Q2M_UpdateLeds();
+
     if (cnt % 10 == 0)
     {
         I2C_Status = HAL_I2C_Mem_Read(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
