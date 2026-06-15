@@ -26,6 +26,7 @@
 #include "usbd_conf.h"
 #include "es9038q2m.h"
 #include "SEGGER_RTT.h"
+#include "stm32f4xx_it.h"
 #define LOG_LEVEL LOG_LEVEL_DBG
 #include "log.h"
 /* USER CODE END Includes */
@@ -1120,6 +1121,8 @@ void Source_Thread(void const *argument)
     for (;;)
     {
         osDelay(50);
+
+        PowerButton_Process();
 
         if (EtatAmp != AMP_ON)
             continue;

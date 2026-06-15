@@ -37,7 +37,8 @@
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-
+extern volatile bool short_press_pending; /* consumed by StartOnOff / Source_Thread */
+extern volatile bool long_press_pending;  /* consumed by StartOnOff (power off)    */
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -63,6 +64,8 @@ void OTG_HS_EP1_OUT_IRQHandler(void);
 void OTG_HS_EP1_IN_IRQHandler(void);
 void OTG_HS_IRQHandler(void);
 /* USER CODE BEGIN EFP */
+
+void PowerButton_Process(void);   /* call from EXTI ISR and periodically from a task */
 
 /* USER CODE END EFP */
 

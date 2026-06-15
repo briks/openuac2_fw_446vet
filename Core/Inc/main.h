@@ -176,8 +176,6 @@ static const source_t sources[SOURCE_COUNT] =
 extern volatile bool       CommandeAmp;  /* on/off request */
 extern volatile AmpState_t EtatAmp;      /* current amp state */
 
-extern volatile bool short_press_pending; /* consumed by StartOnOff / Source_Thread */
-extern volatile bool long_press_pending;  /* consumed by StartOnOff (power off)    */
 extern volatile AudioSource_t current_source;
 
 /* USER CODE END Private defines */

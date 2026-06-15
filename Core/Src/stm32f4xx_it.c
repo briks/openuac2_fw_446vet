@@ -201,26 +201,50 @@ void I2C1_EV_IRQHandler(void)
 /**
  * @brief This function handles EXTI line[15:10] interrupts.
  */
-void EXTI15_10_IRQHandler(void)
+/* Shared button state machine.
+ * Called on EXTI edges (ISR) and periodically (task) so a long press
+ * can be detected the instant the 1 s threshold is crossed while held.
+ */
+void PowerButton_Process(void)
 {
     static uint32_t pressStartTime = 0;
+    static bool wasPressed = false;
+    static bool longFired   = false;
 
-    if (LL_GPIO_IsInputPinSet(EXT_INT_ENCODER_GPIO_Port, EXT_INT_ENCODER_Pin) == 1)
+    NVIC_DisableIRQ(EXTI15_10_IRQn);
+
+    bool pressed =
+        (LL_GPIO_IsInputPinSet(EXT_INT_ENCODER_GPIO_Port, EXT_INT_ENCODER_Pin) == 1);
+
+    if (pressed && !wasPressed)
     {
-        /* button DOWN */
+        /* edge: button DOWN */
+        wasPressed = true;
+        longFired  = false;
         pressStartTime = HAL_GetTick();
         LOG_DBG("pwr button DOWN @ %lu ms", (unsigned long)pressStartTime);
     }
-    else
+    else if (pressed && wasPressed)
     {
-        /* button UP */
+        /* held: fire long press once the threshold is reached */
+        if (!longFired &&
+            (HAL_GetTick() - pressStartTime) >= POWER_BUTTON_LONG_PRESS_TIME)
+        {
+            longFired = true;
+            long_press_pending = true;
+            LOG_INFO("long press");
+        }
+    }
+    else if (!pressed && wasPressed)
+    {
+        /* edge: button UP */
+        wasPressed = false;
         uint32_t pressDuration = HAL_GetTick() - pressStartTime;
         LOG_DBG("pwr button UP, duration=%lu ms", (unsigned long)pressDuration);
 
-        if (pressDuration >= POWER_BUTTON_LONG_PRESS_TIME)
+        if (longFired)
         {
-            long_press_pending = true;
-            LOG_INFO("long press");
+            /* already handled as long press on the way down; ignore release */
         }
         else if (pressDuration >= POWER_BUTTON_PRESS_MIN_TIME)
         {
@@ -232,6 +256,14 @@ void EXTI15_10_IRQHandler(void)
             LOG_INFO("button press ignored (%lu ms)", (unsigned long)pressDuration);
         }
     }
+    /* else (!pressed && !wasPressed): idle, nothing to do */
+
+    NVIC_EnableIRQ(EXTI15_10_IRQn);
+}
+
+void EXTI15_10_IRQHandler(void)
+{
+    PowerButton_Process();
 
     if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_11) != RESET)
     {
