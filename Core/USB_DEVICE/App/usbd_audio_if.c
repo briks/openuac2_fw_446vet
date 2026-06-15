@@ -149,7 +149,6 @@ static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
         {
             LOG_ERR("I2S master DMA start failed (play)");
         }
-        LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
         break;
 
     case AUDIO_CMD_STOP:
@@ -159,9 +158,6 @@ static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
         }
 		HAL_I2S_DMAStop(&AUDIO_I2S_MSTR_HANDLE);
 		HAL_I2S_DMAStop(&AUDIO_I2S_SLAVE_HANDLE);   /* harmless if not running */
-		LL_GPIO_ResetOutputPin(DSDOE_GPIO_Port, DSDOE_Pin);
-		LL_GPIO_SetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
-		LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
 		LL_GPIO_ResetOutputPin(DSDOE_GPIO_Port, DSDOE_Pin);
 		break;
 

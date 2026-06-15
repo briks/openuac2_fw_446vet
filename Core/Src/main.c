@@ -75,7 +75,7 @@ osThreadId LedsHandle;
 uint32_t LedsBuffer[LedsBufferSize / sizeof(uint32_t)];
 osStaticThreadDef_t LedsControlBlock;
 osThreadId SourceHandle;
-#define SourceBufferSize 256
+#define SourceBufferSize 512
 uint32_t SourceBuffer[SourceBufferSize / sizeof(uint32_t)];
 osStaticThreadDef_t SourceControlBlock;
 osThreadId OnOffHandle;
@@ -85,9 +85,14 @@ osStaticThreadDef_t OnOffControlBlock;
 
 /* USER CODE BEGIN PV */
 uint32_t errors_mask = 0;
-volatile bool CommandeAmp = false;        // variable globale commande amplis on/off
-volatile AmpState_t EtatAmp = AMP_OFF;    // variable globale etat des amplis on/off
-volatile int8_t last_encoder_counter = 0; // store last rotary position
+volatile bool CommandeAmp = false;
+volatile AmpState_t EtatAmp = AMP_OFF;
+volatile int8_t last_encoder_counter = 0;
+
+volatile bool short_press_pending = false;
+volatile bool long_press_pending  = false;
+
+volatile AudioSource_t current_source = SOURCE_USB;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -102,11 +107,11 @@ static void MX_I2S3_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_SPI4_Init(void);
 static void MX_USART2_UART_Init(void);
-void StartDefaultTask(void const *argument);
+void Events_Thread(void const *argument);
 void StartVolume(void const *argument);
-void StartLeds(void const *argument);
-void StartSource(void const *argument);
-void StartOnOff(void const *argument);
+void Leds_Thread(void const *argument);
+void Source_Thread(void const *argument);
+void AmpOnOff_Thread(void const *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -121,10 +126,14 @@ void StartOnOff(void const *argument);
  */
 void Error_cancel_nonBlocking(errorNbr errorBit_nBr)
 {
-    errors_mask &= ~(1 << errorBit_nBr);
-    if (errors_mask == 0)
+    if ((errorBit_nBr & errors_mask) != 0)
     {
-        LL_GPIO_ResetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+        LOG_WARN("Error canceled, bit %u", (unsigned)errorBit_nBr);
+        errors_mask &= ~(1 << errorBit_nBr);
+        if (errors_mask == 0)
+        {
+            LOG_INFO("Errors cleared");
+        }
     }
 }
 
@@ -136,7 +145,7 @@ void Error_Handler_nonBlocking(char *errorStr, errorNbr errorBit_nBr)
 {
     errors_mask |= 1 << errorBit_nBr;
     LOG_ERR("%s (bit %u)", errorStr ? errorStr : "?", (unsigned)errorBit_nBr);
-    LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+    Error_Handler();
 }
 
 /* USER CODE END 0 */
@@ -232,7 +241,7 @@ int main(void)
 
     /* Create the thread(s) */
     /* definition and creation of defaultTask  */
-    osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, defaultTaskBufferSize / sizeof(uint32_t), defaultTaskBuffer, &defaultTaskControlBlock);
+    osThreadStaticDef(defaultTask, Events_Thread, osPriorityNormal, 0, defaultTaskBufferSize / sizeof(uint32_t), defaultTaskBuffer, &defaultTaskControlBlock);
     defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
     /* definition and creation of Volume */
@@ -240,15 +249,15 @@ int main(void)
     VolumeHandle = osThreadCreate(osThread(Volume), NULL);
 
     /* definition and creation of Leds */
-    osThreadStaticDef(Leds, StartLeds, osPriorityNormal, 0, LedsBufferSize / sizeof(uint32_t), LedsBuffer, &LedsControlBlock);
+    osThreadStaticDef(Leds, Leds_Thread, osPriorityNormal, 0, LedsBufferSize / sizeof(uint32_t), LedsBuffer, &LedsControlBlock);
     LedsHandle = osThreadCreate(osThread(Leds), NULL);
 
     /* definition and creation of Source */
-    osThreadStaticDef(Source, StartSource, osPriorityNormal, 0, SourceBufferSize / sizeof(uint32_t), SourceBuffer, &SourceControlBlock);
+    osThreadStaticDef(Source, Source_Thread, osPriorityNormal, 0, SourceBufferSize / sizeof(uint32_t), SourceBuffer, &SourceControlBlock);
     SourceHandle = osThreadCreate(osThread(Source), NULL);
 
-    /* definition and creation of OnOff, prio higher than StartDefaultTask source to handle I2C mute request */
-    osThreadStaticDef(OnOff, StartOnOff, osPriorityAboveNormal, 0, OnOffBufferSize / sizeof(uint32_t), OnOffBuffer, &OnOffControlBlock);
+    /* definition and creation of OnOff, prio higher than Events_Thread source to handle I2C mute request */
+    osThreadStaticDef(OnOff, AmpOnOff_Thread, osPriorityAboveNormal, 0, OnOffBufferSize / sizeof(uint32_t), OnOffBuffer, &OnOffControlBlock);
     OnOffHandle = osThreadCreate(osThread(OnOff), NULL);
 
     /* USER CODE BEGIN RTOS_THREADS */
@@ -849,6 +858,13 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void source_leds_off(void)
+{
+    LL_GPIO_ResetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
+    LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
+    LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
+    LL_GPIO_ResetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+}
 
 /* --- LED PWM via TIM9 -------------------------------------------------------
  * PE5 -> TIM9_CH1 (AF3) -> Led_G
@@ -949,14 +965,12 @@ void Led_R_SetBrightness(uint8_t percent)
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
 /**
  * @brief  Function implementing the defaultTask thread.
  * @param  argument: Not used
  * @retval None
  */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const *argument)
+void Events_Thread(void const *argument)
 {
     /* USER CODE BEGIN 5 */
 
@@ -969,10 +983,8 @@ void StartDefaultTask(void const *argument)
     osDelay(100);
     LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
     osDelay(300);
-    LL_GPIO_ResetOutputPin(LED4_USB_GPIO_Port, LED4_USB_Pin);
-    LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
-    LL_GPIO_ResetOutputPin(LED2_BT_GPIO_Port, LED2_BT_Pin);
-    LL_GPIO_ResetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
+
+    source_leds_off();
 
     /* Infinite loop */
     for (;;)
@@ -988,10 +1000,8 @@ void StartDefaultTask(void const *argument)
  * @param argument: Not used
  * @retval None
  */
-/* USER CODE END Header_StartVolume */
 void StartVolume(void const *argument)
 {
-    /* USER CODE BEGIN StartVolume */
     /* Infinite loop */
     for (;;)
     {
@@ -1008,63 +1018,155 @@ void StartVolume(void const *argument)
         }
         osDelay(100);
     }
-    /* USER CODE END StartVolume */
 }
 
-/* USER CODE BEGIN Header_StartLeds */
 /**
  * @brief Function implementing the Leds thread.
  * @param argument: Not used
  * @retval None
  */
-/* USER CODE END Header_StartLeds */
-void StartLeds(void const *argument)
+void Leds_Thread(void const *argument)
 {
-    /* USER CODE BEGIN StartLeds */
     /* Infinite loop */
     for (;;)
     {
         osDelay(20);
     }
-    /* USER CODE END StartLeds */
 }
 
-/* USER CODE BEGIN Header_StartSource */
+/* --- Audio source selection ------------------------------------------------
+ * Cycle order: USB -> SPDIF -> BT -> LINE -> USB ...
+ * -------------------------------------------------------------------------- */
+
+static bool Source_IsAvailable(AudioSource_t src)
+{
+    switch (src)
+    {
+    case SOURCE_USB:
+        /* "connected" = enumerated and configured by the host */
+        return (hUsbDeviceHS.dev_state == USBD_STATE_CONFIGURED);
+
+    case SOURCE_SPDIF:
+    case SOURCE_BT:
+    case SOURCE_LINE:
+    default:
+        return true;   /* detection not implemented yet */
+    }
+}
+
+
+/* Try to find a source in one loop starting by the given one */
+static AudioSource_t Source_Search(AudioSource_t start_source)
+{
+    for (uint8_t i = 0; i < SOURCE_COUNT; i++)
+    {
+        AudioSource_t candidate = (AudioSource_t)((start_source + i) % SOURCE_COUNT);
+        LL_GPIO_SetOutputPin(sources[candidate].GPIOx, sources[candidate].PinMask);
+        if (Source_IsAvailable(candidate))
+            return candidate;
+        osDelay(500);
+        LL_GPIO_ResetOutputPin(sources[candidate].GPIOx, sources[candidate].PinMask);
+    }
+    return start_source;   /* none else available, keep current */
+}
+
+static void Source_Switch(AudioSource_t start_source)
+{
+    source_leds_off();
+
+    AudioSource_t new_source = Source_Search(start_source);
+
+    if (new_source == current_source &&  EtatAmp == AMP_ON)
+    {
+        LOG_INFO("source == %s, no other source available", sources[current_source].name);
+        return;
+    }
+
+    switch (new_source)
+    {
+        case SOURCE_USB:
+            /* TODO: route input mux / SEL_SPDIF for USB path */
+            break;
+
+        case SOURCE_SPDIF:
+            /* TODO: route input mux / SEL_SPDIF for SPDIF path */
+            break;
+
+        case SOURCE_BT:
+            /* TODO: route input mux / enable BT module */
+            break;
+
+        case SOURCE_LINE:
+            /* TODO: route input mux for LINE path */
+            break;
+
+        default:
+            LOG_ERR("invalid source");
+            return;
+    }
+
+    current_source = new_source;
+    LOG_INFO("source -> %s", sources[new_source].name);
+    LL_GPIO_SetOutputPin(sources[new_source].GPIOx, sources[new_source].PinMask);
+}
+
 /**
  * @brief Function implementing the Source thread.
  * @param argument: Not used
  * @retval None
  */
-/* USER CODE END Header_StartSource */
-void StartSource(void const *argument)
+void Source_Thread(void const *argument)
 {
-    /* USER CODE BEGIN StartSource */
-    /* Infinite loop */
     for (;;)
     {
         osDelay(50);
+
+        if (EtatAmp != AMP_ON)
+            continue;
+
+        /* Short press while ON: cycle to next available source */
+        if (short_press_pending && EtatAmp == AMP_ON)
+        {
+            short_press_pending = false;
+            Source_Switch(current_source + 1);
+        }
     }
-    /* USER CODE END StartSource */
 }
 
-/* USER CODE BEGIN Header_StartOnOff */
 /**
  * @brief Function implementing the OnOff thread.
  * @param argument: Not used
  * @retval None
  */
 /* USER CODE END Header_StartOnOff */
-void StartOnOff(void const *argument)
+void AmpOnOff_Thread(void const *argument)
 {
-    /* USER CODE BEGIN StartOnOff */
     /* Infinite loop */
     for (;;)
     {
         osDelay(100);
+
+        /* Long press -> power OFF (from any state) */
+        if (long_press_pending)
+        {
+            long_press_pending = false;
+            CommandeAmp = false;
+        }
+
+        /* Short press while OFF -> power ON */
+        if (short_press_pending && EtatAmp == AMP_OFF)
+        {
+            short_press_pending = false;
+            CommandeAmp = true;
+        }
+
         if (CommandeAmp && EtatAmp == AMP_OFF)
         {
             LOG_WARN("amp power START sequence");
             EtatAmp = AMP_POWERING;
+
+            /* select default source (USB if connected, else next available) */
+            Source_Switch(current_source);
 
             __HAL_TIM_SET_COUNTER(&htim4, 0);
             last_encoder_counter = 0;
@@ -1080,8 +1182,9 @@ void StartOnOff(void const *argument)
             LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
             osDelay(100);
             LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
-
+            
             EtatAmp = AMP_ON;
+
             ES9038Q2M_DAC_SetMute_Force(false);
             LOG_INFO("amp power ON, unmuted, let's rock...");
         }
@@ -1090,6 +1193,7 @@ void StartOnOff(void const *argument)
             LOG_WARN("amp power OFF start sequence");
             EtatAmp = AMP_OFF;
             ES9038Q2M_DAC_SetMute_Force(true);
+            source_leds_off();
             HAL_TIM_Encoder_Stop(&htim4, TIM_CHANNEL_ALL);
             LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
             LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
@@ -1102,7 +1206,6 @@ void StartOnOff(void const *argument)
             LOG_INFO("amp OFF, cool down.");
         }
     }
-    /* USER CODE END StartOnOff */
 }
 
 /**
@@ -1161,3 +1264,4 @@ void assert_failed(uint8_t *file, uint32_t line)
     /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
+

@@ -63,15 +63,14 @@ typedef enum
     AMP_POWERING,   /* start sequence in progress (relays settling) */
     AMP_ON
 } AmpState_t;
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-#define POWER_BUTTON_PRESS_MIN_TIME  50 // in ms, min time to detect power button action
-#define POWER_BUTTON_PRESS_MAX_TIME 1000 // in ms, max time to detect power button action
+#define POWER_BUTTON_PRESS_MIN_TIME   50    /* ms, ignore shorter (debounce)   */
+#define POWER_BUTTON_LONG_PRESS_TIME  1000  /* ms, >= this counts as long press */
 
-extern volatile bool CommandeAmp; // variable globale commande amplis on/off
-extern volatile AmpState_t EtatAmp;     // variable globale etat des amplis on/off
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -150,6 +149,36 @@ void Led_R_SetBrightness(uint8_t percent);      /* 0..100 */
 #define BT_PWR_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
+typedef enum
+{
+    SOURCE_USB = 0,
+    SOURCE_SPDIF,
+    SOURCE_BT,
+    SOURCE_LINE,
+    SOURCE_COUNT
+} AudioSource_t;
+
+typedef struct source {
+    GPIO_TypeDef *GPIOx;
+    uint32_t PinMask;
+    char *name;
+}source_t;
+
+/* Indexed by AudioSource_t; keep in sync with the enum order. */
+static const source_t sources[SOURCE_COUNT] =
+{
+    [SOURCE_USB]   = {LED4_USB_GPIO_Port,LED4_USB_Pin,"USB"},
+    [SOURCE_SPDIF] = {LED1_SPDIF_GPIO_Port,LED1_SPDIF_Pin,"SPDIF"},
+    [SOURCE_BT]    = {LED2_BT_GPIO_Port,LED2_BT_Pin,"BT"},
+    [SOURCE_LINE]  = {LED3_LINE_GPIO_Port,LED3_LINE_Pin,"LINE"},
+};
+
+extern volatile bool       CommandeAmp;  /* on/off request */
+extern volatile AmpState_t EtatAmp;      /* current amp state */
+
+extern volatile bool short_press_pending; /* consumed by StartOnOff / Source_Thread */
+extern volatile bool long_press_pending;  /* consumed by StartOnOff (power off)    */
+extern volatile AudioSource_t current_source;
 
 /* USER CODE END Private defines */
 

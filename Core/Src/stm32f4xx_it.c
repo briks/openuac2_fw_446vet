@@ -207,34 +207,39 @@ void EXTI15_10_IRQHandler(void)
 
     if (LL_GPIO_IsInputPinSet(EXT_INT_ENCODER_GPIO_Port, EXT_INT_ENCODER_Pin) == 1)
     {
+        /* button DOWN */
         pressStartTime = HAL_GetTick();
         LOG_DBG("pwr button DOWN @ %lu ms", (unsigned long)pressStartTime);
     }
-    if (LL_GPIO_IsInputPinSet(EXT_INT_ENCODER_GPIO_Port, EXT_INT_ENCODER_Pin) == 0)
+    else
     {
+        /* button UP */
         uint32_t pressDuration = HAL_GetTick() - pressStartTime;
         LOG_DBG("pwr button UP, duration=%lu ms", (unsigned long)pressDuration);
-        if ((pressDuration < POWER_BUTTON_PRESS_MAX_TIME) &&
-            (pressDuration > POWER_BUTTON_PRESS_MIN_TIME))
+
+        if (pressDuration >= POWER_BUTTON_LONG_PRESS_TIME)
         {
-            CommandeAmp = !CommandeAmp;
+            long_press_pending = true;
+            LOG_INFO("long press");
+        }
+        else if (pressDuration >= POWER_BUTTON_PRESS_MIN_TIME)
+        {
+            short_press_pending = true;
+            LOG_INFO("short press");
         }
         else
         {
-            LOG_INFO("power button press ignored (%lu ms)", (unsigned long)pressDuration);
+            LOG_INFO("button press ignored (%lu ms)", (unsigned long)pressDuration);
         }
     }
 
-    /* USER CODE END EXTI15_10_IRQn 0 */
     if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_11) != RESET)
     {
         LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_11);
         /* USER CODE BEGIN LL_EXTI_LINE_11 */
-
         /* USER CODE END LL_EXTI_LINE_11 */
     }
     /* USER CODE BEGIN EXTI15_10_IRQn 1 */
-
     /* USER CODE END EXTI15_10_IRQn 1 */
 }
 

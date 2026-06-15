@@ -376,7 +376,7 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
                     haudio->bit_depth = (haudio->alt_setting == 1) ? 32U : 24U;
                     if (prev != haudio->alt_setting)
                     {
-                        LOG_INFO("alt setting %u → %u (bit_depth=%u)",
+                        LOG_INFO("alt setting %u -> %u (bit_depth=%u)",
                                  prev, haudio->alt_setting, haudio->bit_depth);
                     }
                 }
@@ -590,7 +590,8 @@ void USBD_AUDIO_Sync(USBD_HandleTypeDef *pdev)
 {
     USBD_AUDIO_HandleTypeDef* haudio = pdev->pClassDataCmsit[pdev->classId];
 
-    if (haudio->state == AUDIO_STATE_STOPPED) return;
+    if (haudio->state == AUDIO_STATE_STOPPED)
+    return;
 
     AudioBuffer_Sync(&haudio->aud_buf, AUDIO_SYNC_CLK_DIV << 3);
     USBD_AUDIO_UpdateFB(&hUsbDeviceHS);
@@ -607,7 +608,8 @@ void USBD_AUDIO_Sync(USBD_HandleTypeDef *pdev)
     }
 #endif
 
-    if ((haudio->aud_buf.state == AB_UDFL) && (haudio->state == AUDIO_STATE_PLAYING)) {
+    if ((haudio->aud_buf.state == AB_UDFL) && (haudio->state == AUDIO_STATE_PLAYING))
+    {
         LOG_INFO("audio -> STOPPED (underflow)");
         haudio->state = AUDIO_STATE_STOPPED;
         haudio->stream_type = AUDIO_FORMAT_PCM;
@@ -615,13 +617,11 @@ void USBD_AUDIO_Sync(USBD_HandleTypeDef *pdev)
     }
 
     /* LED logic */
-    if (haudio->aud_buf.size < haudio->aud_buf.capacity >> 2)
+    if (   haudio->aud_buf.capacity != 0
+        && haudio->aud_buf.size * 4 > haudio->aud_buf.capacity * 3)
     {
-        LL_GPIO_ResetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
-    }
-    else
-    {
-        LL_GPIO_SetOutputPin(LED1_SPDIF_GPIO_Port, LED1_SPDIF_Pin);
+        LOG_WARN("audio buf reach 3/4 capacity, size=%lu capacity=%lu",
+                 (unsigned long)haudio->aud_buf.size, (unsigned long)haudio->aud_buf.capacity);
     }
 }
 

@@ -18,6 +18,7 @@ void AudioBuffer_Reset(AudioBuffer* ab, uint32_t capacity)
 	ab->wr_ptr = 0;
 	ab->rd_ptr = 0;
 	ab->capacity = capacity;
+	LOG_INFO("Reset audio buffer, capacity: %lu", (unsigned long)ab->capacity);
 }
 
 uint8_t AudioBuffer_Receive(AudioBuffer* ab, uint32_t rxSize)
