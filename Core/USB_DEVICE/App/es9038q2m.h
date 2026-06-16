@@ -25,9 +25,34 @@
 #define ES9038Q2M_REG15_ADDR 15 /* Ch1 volume */
 #define ES9038Q2M_REG16_ADDR 16 /* Ch2 volume */
 #define ES9038Q2M_REG27_ADDR 27 /* General configuration*/
-#define ES9038Q2M_REG96_ADDR 96
+#define ES9038Q2M_REG96_ADDR 96 /* RO : Input selection and automute status */
+#define ES9038Q2M_REG100_ADDR 100 /* RO : LSB ADC readback (latch) */
+#define ES9038Q2M_REG101_ADDR 101 /* RO :     ADC readback */
+#define ES9038Q2M_REG102_ADDR 102 /* RO : MSB ADC readback */
 
-/* REG96 status bits */
+/* REG96 status bits 
+Bit Mnemonic Description
+[7:6] reserved
+[5:4] reserved
+[3]dop_valid
+    Contains the status of the DoP decoder.
+    1'b0: The DoP decoder has not detected a valid DoP signal.
+    1'b1: The DoP decoder has detected a valid DoP signal on the 12S input.
+[2]
+    spdif_valid
+    Contains the status of the SPDIF decoder.
+    1'b0: The SPDIF decoder has not found a valid SPDIF signal.
+[1]
+    i2s_select
+    1'b1: The SPDIF decoder has detected a valid SPDIF signal.
+    Contains the status of the I2S decoder.
+    1'b0: The I2S decoder has not found a valid frame clock or bit clock.
+    1'b1: The I2S decoder has detected a valid frame clock and bit clock arrangement.
+[0]
+    dsd_select
+    Contains the status of the DSD decoder.
+    1'b0: The DSD decoder is not being used.
+    1'b1: The DSD decoder is being used as a fallback option if I2S has failed to decode their respective input signals. */
 #define ES9038Q2M_STAT_DOP_VALID    (1U << 3)
 #define ES9038Q2M_STAT_SPDIF_VALID  (1U << 2)
 #define ES9038Q2M_STAT_I2S_VALID    (1U << 1)

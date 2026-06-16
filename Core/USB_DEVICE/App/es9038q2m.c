@@ -1,7 +1,7 @@
 #include "es9038q2m.h"
 #include "main.h"
 #include "cmsis_os.h"
-#define LOG_LEVEL LOG_LEVEL_INFO
+#define LOG_LEVEL LOG_LEVEL_DBG
 #include "log.h"
 
 #define TIMEOUT_I2C_DELAY   10   /* ms; could be HAL_MAX_DELAY for infinite */
@@ -56,15 +56,37 @@ uint8_t ES9038Q2M_DAC_Init(void)
      *   [6:5]   = 10 : reserved defaults
      *   bit 4   = 1  : reserved default
      *   bit 3   = 0  : ch1_volume (Allow independent control)
-     *   bit 2   = 1  : latch_volume
+     *   bit 2   = 1  : latch_volume off
      *   [1:0]   = 00 : no +18 dB gain
      */
     registre = 0xD4;
     HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG27_ADDR,
                       I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
 
-    /* REG6 = 0x44: increase volume ramp rate */
-    registre = 0x40;
+    /* REG6 = 0x44: increase volume ramp rate
+        Bit Mnemonic    Description
+    [7] auto_deemph
+        Automatically engages the de-emphasis filters when SPDIF data is provides and the SPDIF channel status bits contains valid de-emphasis settings.
+        1'b1: enables automatic de-emphasis
+        1'b0: disables automatic de-emphasis (default)
+    [6] deemph_bypass
+        Enables or disables the built-in de-emphasis filters.
+        1'b1 disabled de-emphasis filters (default)
+        1'b0 enables de-emphasis filters
+    [5:4] deemph_sel
+        Selects which de-emphasis filter is used.
+        2'b11: reserved
+        2'b10: 48kHz
+        2'b01: 44.1kHz
+        2'b00: 32kHz (default)
+    [3] dop_enable
+        Selects whether the DSD over PCM (DOP) logic is enabled.
+        1'b0: disables the DoP logic
+        1'b1: enables the DoP logic
+    [2:0] volume_rate
+        Selects a volume ramp rate to use when transitioning between different volume levels. The volume ramp rate is measured in decibels per second (dB/s).
+    */
+    registre = 0xC8; // auto_deemph + dop_enable + volume_rate=0b000 (slowest ramp rate)
     HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG6_ADDR,
                       I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
     HAL_I2C_Mem_Read (&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG6_ADDR,
@@ -256,9 +278,10 @@ void ES9038Q2M_ProcessEvents(void)
 
     if (cnt % 10 == 0)
     {
+        uint8_t new_status_register;
         I2C_Status = HAL_I2C_Mem_Read(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
                                       ES9038Q2M_REG96_ADDR, I2C_MEMADD_SIZE_8BIT,
-                                      &status_register, 1, TIMEOUT_I2C_DELAY);
+                                      &new_status_register, 1, TIMEOUT_I2C_DELAY);
         if (I2C_Status != HAL_OK)
         {
             Error_Handler_nonBlocking("I2C read failure", ERROR_I2C);
@@ -269,6 +292,29 @@ void ES9038Q2M_ProcessEvents(void)
         else
         {
             Error_cancel_nonBlocking(ERROR_I2C);
+            // Display info on changes :
+            if (new_status_register != status_register)
+            {
+                LOG_DBG("Status change: 0x%02X -> 0x%02X",
+                    status_register, new_status_register);
+                if ((new_status_register & ES9038Q2M_STAT_DOP_VALID) != (status_register & ES9038Q2M_STAT_DOP_VALID))
+                {
+                    LOG_WARN("  DOP decoder %s", (new_status_register & ES9038Q2M_STAT_DOP_VALID) ? "VALID" : "INVALID");
+                }
+                if ((new_status_register & ES9038Q2M_STAT_SPDIF_VALID) != (status_register & ES9038Q2M_STAT_SPDIF_VALID))
+                {
+                    LOG_WARN("  SPDIF decoder %s", (new_status_register & ES9038Q2M_STAT_SPDIF_VALID) ? "VALID" : "INVALID");
+                }
+                if ((new_status_register & ES9038Q2M_STAT_I2S_VALID) != (status_register & ES9038Q2M_STAT_I2S_VALID))
+                {
+                    LOG_WARN("  I2S decoder %s", (new_status_register & ES9038Q2M_STAT_I2S_VALID) ? "VALID" : "INVALID");
+                }
+                if ((new_status_register & ES9038Q2M_STAT_DSD_VALID) != (status_register & ES9038Q2M_STAT_DSD_VALID))
+                {
+                    LOG_WARN("  DSD decoder %s", (new_status_register & ES9038Q2M_STAT_DSD_VALID) ? "VALID" : "INVALID");
+                }
+                status_register = new_status_register;
+            }
         }
     }
 
