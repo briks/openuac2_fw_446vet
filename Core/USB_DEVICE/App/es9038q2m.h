@@ -25,6 +25,9 @@
 #define ES9038Q2M_REG15_ADDR 15 /* Ch1 volume */
 #define ES9038Q2M_REG16_ADDR 16 /* Ch2 volume */
 #define ES9038Q2M_REG27_ADDR 27 /* General configuration*/
+#define ES9038Q2M_REG70_ADDR 70 /* RO : SPDIF channel status / user status (start) */
+#define ES9038Q2M_REG93_ADDR 93 /* RO : SPDIF channel status / user status (end)   */
+#define ES9038Q2M_SPDIF_STATUS_COUNT (ES9038Q2M_REG93_ADDR - ES9038Q2M_REG70_ADDR + 1) /* 24 bytes */
 #define ES9038Q2M_REG96_ADDR 96 /* RO : Input selection and automute status */
 #define ES9038Q2M_REG100_ADDR 100 /* RO : LSB ADC readback (latch) */
 #define ES9038Q2M_REG101_ADDR 101 /* RO :     ADC readback */
@@ -75,6 +78,7 @@ void ES9038Q2M_DAC_SetMute_Force(bool mute);
 uint8_t ES9038Q2M_DAC_Format_set(uint8_t format);
 uint8_t ES9038Q2M_DAC_Play(void);
 uint8_t ES9038Q2M_DAC_Stop(void);
+void    ES9038Q2M_LogSpdifChannelStatus(void);
 void    ES9038Q2M_ProcessEvents(void);
 
 #endif /* _ES9038Q2M_H_ */

@@ -1,3 +1,6 @@
+#include <string.h>
+#include <stdio.h>
+
 #include "es9038q2m.h"
 #include "main.h"
 #include "cmsis_os.h"
@@ -52,13 +55,13 @@ uint8_t ES9038Q2M_DAC_Init(void)
                       I2C_MEMADD_SIZE_8BIT, &regread,  1, TIMEOUT_I2C_DELAY);
 
     /* REG27 = 0xBC: ASRC enable, link L/R volume, latch volume, no +18 dB gain.
-     *   bit 7   = 1  : asrc_en
-     *   [6:5]   = 10 : reserved defaults
-     *   bit 4   = 1  : reserved default
-     *   bit 3   = 0  : ch1_volume (Allow independent control)
-     *   bit 2   = 1  : latch_volume off
-     *   [1:0]   = 00 : no +18 dB gain
-     */
+      *   bit 7   = 1  : asrc_en
+      *   [6:5]   = 10 : reserved defaults
+      *   bit 4   = 1  : reserved default
+      *   bit 3   = 0  : ch1_volume (Allow independent control)
+      *   bit 2   = 1  : latch_volume off
+      *   [1:0]   = 00 : no +18 dB gain
+      */
     registre = 0xD4;
     HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG27_ADDR,
                       I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
@@ -163,8 +166,8 @@ HAL_StatusTypeDef ES9038Q2M_DAC_SetMute_Immediate(bool mute)
     do
     {
         st = HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
-                               ES9038Q2M_REG7_ADDR, I2C_MEMADD_SIZE_8BIT,
-                               &registre, 1, TIMEOUT_I2C_DELAY);
+                                ES9038Q2M_REG7_ADDR, I2C_MEMADD_SIZE_8BIT,
+                                &registre, 1, TIMEOUT_I2C_DELAY);
         if (st == HAL_BUSY)
         {
             osDelay(1); /* yield, let other tasks free the bus */
@@ -175,7 +178,7 @@ HAL_StatusTypeDef ES9038Q2M_DAC_SetMute_Immediate(bool mute)
 }
 
 /* Force mute when amp powers on/off.
- Not a host request, so signal mute change to host */
+  Not a host request, so signal mute change to host */
 void ES9038Q2M_DAC_SetMute_Force(bool mute)
 {
     LOG_INFO("DAC_SetMute_Force %s", mute ? "MUTE" : "UNMUTE");
@@ -205,10 +208,10 @@ uint8_t ES9038Q2M_DAC_Stop(void)
 uint8_t convert_vol_to_register(int16_t volume_q88)
 {
     /* REG15 REG16 attenuation = -0.5 dB / step.
-     * es9038q2m_configured_volume is signed Q8.8 dB in [AUDIO_MIN_VOL .. AUDIO_MAX_VOL] = [-64 dB .. 0 dB].
-     *   register_value = -2 * dB = -2 * (q88 / 256) = -q88 / 128
-     *   yielding 0..254 for 0..-64 dB.
-     */
+      * es9038q2m_configured_volume is signed Q8.8 dB in [AUDIO_MIN_VOL .. AUDIO_MAX_VOL] = [-64 dB .. 0 dB].
+      *   register_value = -2 * dB = -2 * (q88 / 256) = -q88 / 128
+      *   yielding 0..254 for 0..-64 dB.
+      */
     int32_t attenuation = -((int32_t)volume_q88) / 64; //  /256 for q8.8, and x4 from -64/0 to 0/255
     if (attenuation < 0)
         attenuation = 0;
@@ -217,17 +220,17 @@ uint8_t convert_vol_to_register(int16_t volume_q88)
     LOG_INFO("applying volume change: %d (registre=%u, %ddB)",
         volume_q88,
         (uint8_t)attenuation,
-         -attenuation / 2);
+          -attenuation / 2);
     return (uint8_t)attenuation;
 }
 
 
 /* Under the Amps LEDs:
- *   Green: volume-driven (avg of L/R requested volumes), off when muted
- *          or amp off. Linear in dB; gamma LUT in the LED API handles
- *          perceptual linearity.
- *   Red  : on (dim) only when amp is on AND muted; off otherwise.
- */
+  *   Green: volume-driven (avg of L/R requested volumes), off when muted
+  *          or amp off. Linear in dB; gamma LUT in the LED API handles
+  *          perceptual linearity.
+  *   Red  : on (dim) only when amp is on AND muted; off otherwise.
+  */
 static void ES9038Q2M_UpdateLeds(void)
 {
     uint8_t g_pct, r_pct;
@@ -245,7 +248,7 @@ static void ES9038Q2M_UpdateLeds(void)
     else
     {
         int32_t avg = ((int32_t)requested_volume_ch1 +
-                       (int32_t)requested_volume_ch2) / 2;
+                        (int32_t)requested_volume_ch2) / 2;
 
         if (avg < AUDIO_MIN_VOL) avg = AUDIO_MIN_VOL;
         if (avg > AUDIO_MAX_VOL) avg = AUDIO_MAX_VOL;
@@ -259,15 +262,360 @@ static void ES9038Q2M_UpdateLeds(void)
     Led_R_SetBrightness(r_pct);
 }
 
+/* Reverse the low 'nbits' of 'val' (LSB<->MSB within that field). */
+static uint8_t ES9038Q2M_BitReverse(uint8_t val, uint8_t nbits)
+{
+    uint8_t r = 0;
+    for (uint8_t i = 0; i < nbits; i++)
+    {
+        r = (uint8_t)((r << 1) | (val & 1U));
+        val >>= 1;
+    }
+    return r;
+}
+
+/* Print a 4-char 7-bit-ASCII label (origin/destination), bytes b..b+3.
+  * Non-printable bytes are shown as '.'. */
+static void ES9038Q2M_FormatAsciiLabel(const uint8_t *p, char out[5])
+{
+    for (uint8_t i = 0; i < 4; i++)
+    {
+        uint8_t c = p[i] & 0x7F;        /* top bit is parity-zero per spec */
+        out[i] = (c >= 0x20 && c < 0x7F) ? (char)c : '.';
+    }
+    out[4] = '\0';
+}
+
+static void ES9038Q2M_DecodeSpdifChannelStatusPro(const uint8_t *cs);
+
+/* Decode the ES9038Q2M SPDIF channel-status registers (REG70..REG93).
+  * Layout per ES9038Q2M datasheet (IEC 60958). 'cs' = 24 raw bytes. */
+static void ES9038Q2M_DecodeSpdifChannelStatus(const uint8_t *cs)
+{
+    /* Byte 0 (REG70): basic control ------------------------------------- */
+    bool professional = (cs[0] & 0x01) != 0;   /* bit0: 0=consumer 1=pro    */
+    bool data         = (cs[0] & 0x02) != 0;   /* bit1: 0=audio   1=data    */
+    bool copyrighted  = (cs[0] & 0x04) == 0;   /* bit2: 0=copyright asserted*/
+    bool preemphasis  = (cs[0] & 0x08) != 0;   /* bit3: 0=none 1=pre-emph   */
+    bool four_channel = (cs[0] & 0x20) != 0;   /* bit5: 0=2ch 1=4ch         */
+
+    if (professional)
+    {
+        ES9038Q2M_DecodeSpdifChannelStatusPro(cs);
+        return;
+    }
+
+    /* Byte 1 (REG71): category code ------------------------------------- */
+    const char *cat;
+    switch (cs[1])
+    {
+        case 0x00: cat = "General";              break;
+        case 0x01: cat = "Laser-Optical";        break;
+        case 0x02: cat = "D/D Converter";        break;
+        case 0x03: cat = "Magnetic";             break;
+        case 0x04: cat = "Digital Broadcast";    break;
+        case 0x05: cat = "Musical Instrument";   break;
+        case 0x06: cat = "Present A/D Conv";     break;
+        case 0x08: cat = "Solid State Memory";   break;
+        case 0x16: cat = "Future A/D Conv";      break;
+        case 0x19: cat = "DVD";                  break;
+        case 0x40: cat = "Experimental";         break;
+        default:   cat = "unknown";              break;
+    }
+
+    /* Byte 2 (REG72): channel number (hi nibble) / source number (lo) --- */
+    uint8_t chan_num = (cs[2] >> 4) & 0x0F;
+    uint8_t src_num  =  cs[2]       & 0x0F;
+
+    /* Byte 3 (REG73): clock accuracy [5:4], sample frequency [3:0] ------ */
+    uint8_t clk_acc = (cs[3] >> 4) & 0x03;
+    uint8_t fs_code =  cs[3]       & 0x0F;
+    const char *fs_str;
+    switch (fs_code)
+    {
+        case 0x0: fs_str = "44.1 kHz";  break;
+        case 0x2: fs_str = "48 kHz";    break;
+        case 0x3: fs_str = "32 kHz";    break;
+        case 0x4: fs_str = "22.05 kHz"; break;
+        case 0x6: fs_str = "24 kHz";    break;
+        case 0x8: fs_str = "88.2 kHz";  break;
+        case 0xA: fs_str = "96 kHz";    break;
+        case 0xC: fs_str = "176.4 kHz"; break;
+        case 0xE: fs_str = "192 kHz";   break;
+        default:  fs_str = "unknown";   break;
+    }
+    const char *clk_str;
+    switch (clk_acc)
+    {
+        case 0x0: clk_str = "Level2 1000ppm";          break;
+        case 0x1: clk_str = "Level1 50ppm";            break;
+        case 0x2: clk_str = "Level3 variable pitch";   break;
+        default:  clk_str = "reserved";                break;
+    }
+
+    /* Byte 4 (REG74): word length [3:1], word field size bit0 ----------- */
+    bool    max24   = (cs[4] & 0x01) != 0;     /* 0=max20bit 1=max24bit     */
+    uint8_t wl_code = (cs[4] >> 1) & 0x07;      /* field value (see mapping) */
+    /* Mapping derived from the datasheet's LSB-first code table:
+      *   value : max20 / max24
+      *     0   : not indicated
+      *     1   : 23 / 19 bits
+      *     2   : 22 / 18 bits
+      *     3   : 21 / 17 bits
+      *     4   : 20 / 16 bits
+      *     5   : 24 / 20 bits                                              */
+    static const uint8_t wl_max20[6] = { 0, 23, 22, 21, 20, 24 };
+    static const uint8_t wl_max24[6] = { 0, 19, 18, 17, 16, 20 };
+    uint8_t word_bits = 0;
+    if (wl_code < 6)
+        word_bits = max24 ? wl_max24[wl_code] : wl_max20[wl_code];
+
+    /* --- log ---------------------------------------------------------- */
+    LOG_INFO("  SPDIF: %s, %s, copyright=%s, pre-emph=%s, %s",
+              data ? "DATA" : "audio",
+              "consumer",
+              copyrighted ? "yes" : "no",
+              preemphasis ? "yes" : "no",
+              four_channel ? "4ch" : "2ch");
+    LOG_INFO("  SPDIF: category=%s (0x%02X), chan=0x%X, src=0x%X",
+              cat, cs[1], chan_num, src_num);
+    LOG_INFO("  SPDIF: Fs=%s (0x%X), clock=%s", fs_str, fs_code, clk_str);
+    if (word_bits)
+        LOG_INFO("  SPDIF: word length=%u bits (max %s)",
+                  word_bits, max24 ? "24" : "20");
+    else
+        LOG_INFO("  SPDIF: word length not indicated (max %s)",
+                  max24 ? "24" : "20");
+}
+
+/* Decode the ES9038Q2M SPDIF channel-status registers in PROFESSIONAL
+  * (AES3) configuration. 'cs' = 24 raw bytes (REG70..REG93).
+  *
+  * NOTE: several fields are transmitted bit-reversed; the code tables below
+  * use the value as read by the masks shown. Verify against a known AES3
+  * source before trusting word-length / multichannel decode. */
+static void ES9038Q2M_DecodeSpdifChannelStatusPro(const uint8_t *cs)
+{
+    /* Byte 0 (REG70) ---------------------------------------------------- */
+    bool    non_audio = (cs[0] & 0x02) != 0;        /* bit1                */
+    uint8_t emph      = (cs[0] >> 2) & 0x07;        /* bits[4:2]           */
+    bool    unlocked  = (cs[0] & 0x20) != 0;        /* bit5: 0=locked      */
+    uint8_t fs0       = (cs[0] >> 6) & 0x03;        /* bits[7:6]           */
+
+    const char *emph_str;
+    switch (emph)
+    {
+        case 0x0: emph_str = "not indicated"; break;
+        case 0x1: emph_str = "none";          break;
+        case 0x3: emph_str = "CD-type";       break;
+        case 0x7: emph_str = "J-17";          break;
+        default:  emph_str = "reserved";      break;
+    }
+    const char *fs0_str;
+    switch (fs0)
+    {
+        case 0x0: fs0_str = "not indicated (see byte4)"; break;
+        case 0x2: fs0_str = "48 kHz";                    break;
+        case 0x1: fs0_str = "44.1 kHz";                  break;
+        case 0x3: fs0_str = "32 kHz";                    break;
+        default:  fs0_str = "unknown";                   break;
+    }
+
+    /* Byte 1 (REG71): user-bit mgmt [7:4], channel mode [3:0] ----------- */
+    uint8_t user_mgmt = (cs[1] >> 4) & 0x0F;
+    uint8_t chan_mode =  cs[1]       & 0x0F;
+    const char *user_str;
+    switch (user_mgmt)
+    {
+        case 0x0: user_str = "no indication";        break;
+        case 0x8: user_str = "192-bit block";        break;
+        case 0x4: user_str = "AES18";                break;
+        case 0xC: user_str = "user-defined";         break;
+        case 0x2: user_str = "IEC60958-3 (consumer)";break;
+        default:  user_str = "reserved";             break;
+    }
+    const char *mode_str;
+    switch (chan_mode)
+    {
+        case 0x0: mode_str = "not indicated (2ch)";   break;
+        case 0x8: mode_str = "2 channel";             break;
+        case 0x4: mode_str = "1 channel (mono)";      break;
+        case 0xC: mode_str = "primary/secondary";     break;
+        case 0x2: mode_str = "stereo";                break;
+        case 0xE: mode_str = "SCDSR (see byte3)";     break;
+        case 0x1: mode_str = "SCDSR stereo left";     break;
+        case 0x9: mode_str = "SCDSR stereo right";    break;
+        case 0xF: mode_str = "multichannel (byte3)";  break;
+        default:  mode_str = "reserved/user";         break;
+    }
+
+    /* Byte 2 (REG72): align [7:6], src word len [5:3], aux use [2:0] ---- */
+    uint8_t align_lvl = (cs[2] >> 6) & 0x03;
+    uint8_t wl_code   = (cs[2] >> 3) & 0x07;
+    uint8_t aux_use   =  cs[2]       & 0x07;
+    const char *align_str;
+    switch (align_lvl)
+    {
+        case 0x0: align_str = "not indicated"; break;
+        case 0x2: align_str = "-20 dBFS";      break;
+        case 0x1: align_str = "-18.06 dBFS";   break;
+        default:  align_str = "reserved";      break;
+    }
+    /* aux_use also tells us the max word length:
+      *   0x4 = main audio, max 24 bits; else max 20 bits */
+    bool max24 = (aux_use == 0x4);
+    const char *aux_str;
+    switch (aux_use)
+    {
+        case 0x0: aux_str = "not defined (audio max20)"; break;
+        case 0x4: aux_str = "main audio (max24)";        break;
+        case 0x2: aux_str = "coordination (audio max20)";break;
+        case 0x6: aux_str = "reserved";                  break;
+        default:  aux_str = "reserved";                  break;
+    }
+    /* Source word length: same code table as consumer byte4 */
+    uint8_t word_bits;
+    switch (wl_code)
+    {
+        case 0x4: word_bits = max24 ? 19 : 23; break;
+        case 0x2: word_bits = max24 ? 18 : 22; break;
+        case 0x6: word_bits = max24 ? 17 : 21; break;
+        case 0x1: word_bits = max24 ? 16 : 20; break;
+        case 0x5: word_bits = max24 ? 20 : 24; break;
+        default:  word_bits = 0;               break; /* not indicated */
+    }
+
+    /* Byte 3 (REG73): channel identification --------------------------- */
+    /* bit7=0: channel number = 1 + bitreverse(bits[6:0])
+      * bit7=1: bits[6:4] = multichannel mode, bits[3:0] bit-reversed = number */
+    char chan_id_str[48];
+    if ((cs[3] & 0x80) == 0)
+    {
+        uint8_t num = ES9038Q2M_BitReverse(cs[3] & 0x7F, 7);
+        snprintf(chan_id_str, sizeof(chan_id_str), "channel %u", (unsigned)(num + 1));
+    }
+    else
+    {
+        uint8_t mc_mode = (cs[3] >> 4) & 0x07;
+        uint8_t mc_num  = ES9038Q2M_BitReverse(cs[3] & 0x0F, 4);
+        snprintf(chan_id_str, sizeof(chan_id_str),
+                  "multichannel mode %u, channel %u",
+                  (unsigned)mc_mode, (unsigned)mc_num);
+    }
+
+    /* Byte 4 (REG74): fs scaling [7], sample freq [6:3], DARS [1:0] ----- */
+    bool    fs_scaled = (cs[4] & 0x80) != 0;
+    uint8_t fs4       = (cs[4] >> 3) & 0x0F;
+    uint8_t dars      =  cs[4]       & 0x03;
+    const char *fs4_str;
+    switch (fs4)
+    {
+        case 0x0: fs4_str = "not indicated"; break;
+        case 0x1: fs4_str = "24 kHz";        break;
+        case 0x2: fs4_str = "96 kHz";        break;
+        case 0x9: fs4_str = "22.05 kHz";     break;
+        case 0xA: fs4_str = "88.2 kHz";      break;
+        case 0xB: fs4_str = "176.4 kHz";     break;
+        case 0x3: fs4_str = "192 kHz";       break;
+        case 0xF: fs4_str = "user defined";  break;
+        default:  fs4_str = "unknown";       break;
+    }
+    const char *dars_str;
+    switch (dars)
+    {
+        case 0x0: dars_str = "not a DARS";        break;
+        case 0x1: dars_str = "DARS grade2 10ppm"; break;
+        case 0x2: dars_str = "DARS grade1 1ppm";  break;
+        default:  dars_str = "reserved";          break;
+    }
+
+    /* Bytes 6-9 origin label, 10-13 destination label ------------------ */
+    char origin[5], dest[5];
+    ES9038Q2M_FormatAsciiLabel(&cs[6],  origin);
+    ES9038Q2M_FormatAsciiLabel(&cs[10], dest);
+
+    /* Bytes 14-17 local sample address, 18-21 time-of-day (LSB first) --- */
+    uint32_t sample_addr = (uint32_t)cs[14]        | ((uint32_t)cs[15] << 8) |
+                            ((uint32_t)cs[16] << 16)| ((uint32_t)cs[17] << 24);
+    uint32_t tod         = (uint32_t)cs[18]        | ((uint32_t)cs[19] << 8) |
+                            ((uint32_t)cs[20] << 16)| ((uint32_t)cs[21] << 24);
+
+    /* Byte 22 reliability, byte 23 CRCC -------------------------------- */
+    uint8_t reliability = cs[22];
+    uint8_t crcc        = cs[23];
+
+    /* --- log ---------------------------------------------------------- */
+    LOG_INFO("  SPDIF: PROFESSIONAL, %s, %s, emphasis=%s",
+              non_audio ? "non-audio" : "audio",
+              unlocked  ? "UNLOCKED"  : "locked",
+              emph_str);
+    LOG_INFO("  SPDIF: Fs(byte0)=%s, user-bits=%s, mode=%s",
+              fs0_str, user_str, mode_str);
+    LOG_INFO("  SPDIF: chan-id: %s", chan_id_str);
+    LOG_INFO("  SPDIF: align=%s, aux=%s", align_str, aux_str);
+    if (word_bits)
+        LOG_INFO("  SPDIF: word length=%u bits (max %s)",
+                  word_bits, max24 ? "24" : "20");
+    else
+        LOG_INFO("  SPDIF: word length not indicated (max %s)",
+                  max24 ? "24" : "20");
+    LOG_INFO("  SPDIF: Fs(byte4)=%s%s, %s",
+              fs4_str, fs_scaled ? " x(1/1.001)" : "", dars_str);
+    LOG_INFO("  SPDIF: origin='%s' dest='%s'", origin, dest);
+    LOG_INFO("  SPDIF: sample_addr=%lu, time_of_day=%lu",
+              (unsigned long)sample_addr, (unsigned long)tod);
+    LOG_INFO("  SPDIF: reliability=0x%02X, CRCC=0x%02X%s",
+              reliability, crcc, (crcc == 0) ? " (not implemented)" : "");
+}
+
+/* Read REG70..REG93 (SPDIF channel status / user status) and log them.
+  * The ES9038Q2M auto-increments the register pointer on multi-byte reads,
+  * so all 24 bytes are fetched in one I2C transaction.
+  * Values are cached and only logged when they change, to avoid log spam. */
+void ES9038Q2M_LogSpdifChannelStatus(void)
+{
+    static uint8_t cached[ES9038Q2M_SPDIF_STATUS_COUNT];
+    static bool    cache_valid = false;
+    uint8_t        buf[ES9038Q2M_SPDIF_STATUS_COUNT];
+
+    HAL_StatusTypeDef st = HAL_I2C_Mem_Read(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
+                                            ES9038Q2M_REG70_ADDR, I2C_MEMADD_SIZE_8BIT,
+                                            buf, ES9038Q2M_SPDIF_STATUS_COUNT,
+                                            TIMEOUT_I2C_DELAY);
+    if (st != HAL_OK)
+    {
+        LOG_WARN("SPDIF channel status read failed (%d)", (int)st);
+        return;
+    }
+
+    /* Only print when something actually changed */
+    if (cache_valid && memcmp(cached, buf, sizeof(buf)) == 0)
+        return;
+
+    memcpy(cached, buf, sizeof(buf));
+    cache_valid = true;
+
+    LOG_INFO("SPDIF Channel/User Status (REG70-93):");
+    for (uint8_t i = 0; i < ES9038Q2M_SPDIF_STATUS_COUNT; i += 4)
+    {
+        LOG_INFO("  REG%02u-%02u: %02X %02X %02X %02X",
+                  (unsigned)(ES9038Q2M_REG70_ADDR + i),
+                  (unsigned)(ES9038Q2M_REG70_ADDR + i + 3),
+                  buf[i], buf[i + 1], buf[i + 2], buf[i + 3]);
+    }
+
+    ES9038Q2M_DecodeSpdifChannelStatus(buf);
+}
+
 void ES9038Q2M_ProcessEvents(void)
 {
     /* Process audio events in task context, in order of priority.
-     * REG96 status bits (read every 10 calls):
-     *   [3] dop_valid    : DoP decoder has detected a valid DoP signal
-     *   [2] spdif_valid  : SPDIF decoder has detected a valid SPDIF signal
-     *   [1] i2s_valid    : I²S decoder has valid frame clock + bit clock
-     *   [0] dsd_select   : DSD decoder is being used as fallback
-     */
+      * REG96 status bits (read every 10 calls):
+      *   [3] dop_valid    : DoP decoder has detected a valid DoP signal
+      *   [2] spdif_valid  : SPDIF decoder has detected a valid SPDIF signal
+      *   [1] i2s_valid    : I²S decoder has valid frame clock + bit clock
+      *   [0] dsd_select   : DSD decoder is being used as fallback
+      */
     static HAL_StatusTypeDef I2C_Status = HAL_OK;
     static uint32_t cnt = 0;
 
@@ -276,7 +624,7 @@ void ES9038Q2M_ProcessEvents(void)
 
     ES9038Q2M_UpdateLeds();
 
-    if (cnt % 10 == 0)
+    if (cnt % 20 == 0)
     {
         uint8_t new_status_register;
         I2C_Status = HAL_I2C_Mem_Read(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
@@ -295,8 +643,7 @@ void ES9038Q2M_ProcessEvents(void)
             // Display info on changes :
             if (new_status_register != status_register)
             {
-                LOG_DBG("Status change: 0x%02X -> 0x%02X",
-                    status_register, new_status_register);
+                LOG_DBG("Status change: 0x%02X -> 0x%02X", status_register, new_status_register);
                 if ((new_status_register & ES9038Q2M_STAT_DOP_VALID) != (status_register & ES9038Q2M_STAT_DOP_VALID))
                 {
                     LOG_WARN("  DOP decoder %s", (new_status_register & ES9038Q2M_STAT_DOP_VALID) ? "VALID" : "INVALID");
@@ -314,6 +661,13 @@ void ES9038Q2M_ProcessEvents(void)
                     LOG_WARN("  DSD decoder %s", (new_status_register & ES9038Q2M_STAT_DSD_VALID) ? "VALID" : "INVALID");
                 }
                 status_register = new_status_register;
+            }
+
+            /* When a valid SPDIF stream is present, dump its channel/user
+              * status registers (only logs on change). */
+            if (new_status_register & ES9038Q2M_STAT_SPDIF_VALID)
+            {
+                ES9038Q2M_LogSpdifChannelStatus();
             }
         }
     }
@@ -357,13 +711,13 @@ void ES9038Q2M_ProcessEvents(void)
         es9038q2m_configured_volume_ch1 = requested_volume_ch1;
         reg_val = convert_vol_to_register(es9038q2m_configured_volume_ch1);
         I2C_Status = HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
-                                       ES9038Q2M_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
-                                       &reg_val, 1, TIMEOUT_I2C_DELAY);
+                                        ES9038Q2M_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
+                                        &reg_val, 1, TIMEOUT_I2C_DELAY);
 
         es9038q2m_configured_volume_ch2 = requested_volume_ch2;
         reg_val = convert_vol_to_register(es9038q2m_configured_volume_ch2);
         I2C_Status = HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
-                                       ES9038Q2M_REG16_ADDR, I2C_MEMADD_SIZE_8BIT,
-                                       &reg_val, 1, TIMEOUT_I2C_DELAY);
+                                        ES9038Q2M_REG16_ADDR, I2C_MEMADD_SIZE_8BIT,
+                                        &reg_val, 1, TIMEOUT_I2C_DELAY);
     }
 }
