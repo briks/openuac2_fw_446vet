@@ -1083,22 +1083,42 @@ static void Source_Switch(AudioSource_t start_source)
         return;
     }
 
+    /* Source is changing: mute everything (digital + analog), let it settle,
+     * then bring up only the new path below. */
+    ES9038Q2M_DAC_SetMute_Force(true);                       /* mute DAC path  */
+    LL_GPIO_ResetOutputPin(PGA_M_GPIO_Port, PGA_M_Pin);      /* mute PGA (active-low) */
+    LL_GPIO_ResetOutputPin(RELAY_ON_GPIO_Port, RELAY_ON_Pin);/* open LINE relay */
+    LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port, MUX_SEL_Pin);  /* mux -> I2S3_SD (USB) path */
+    LL_GPIO_ResetOutputPin(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin);/* disable SPDIF input HW */
+    ES9038Q2M_DAC_SetInput(ES9038Q2M_INPUT_I2S);             /* default DAC input = I2S */
+    /* MUX_EN is active-low and left enabled (low) at all times */
+    osDelay(50);
+
     switch (new_source)
     {
         case SOURCE_USB:
-            /* TODO: route input mux / SEL_SPDIF for USB path */
+            /* mux already on I2S3_SD (USB) path, DAC on I2S */
+            ES9038Q2M_DAC_SetMute_Force(false);              /* un-mute DAC */
             break;
 
         case SOURCE_SPDIF:
-            /* TODO: route input mux / SEL_SPDIF for SPDIF path */
+            /* enable SPDIF input HW, switch DAC to its SPDIF input (DAC GPIO1) */
+            LL_GPIO_SetOutputPin(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin);
+            ES9038Q2M_DAC_SetInput(ES9038Q2M_INPUT_SPDIF);
+            ES9038Q2M_DAC_SetMute_Force(false);              /* un-mute DAC */
             break;
 
         case SOURCE_BT:
-            /* TODO: route input mux / enable BT module */
+            /* BT path: switch analog/I2S mux from I2S3_SD to BT, DAC stays on I2S */
+            LL_GPIO_SetOutputPin(MUX_SEL_GPIO_Port, MUX_SEL_Pin);
+            ES9038Q2M_DAC_SetMute_Force(false);              /* un-mute DAC */
             break;
 
         case SOURCE_LINE:
-            /* TODO: route input mux for LINE path */
+            /* analog LINE path: close input relay, settle, then unmute PGA */
+            LL_GPIO_SetOutputPin(RELAY_ON_GPIO_Port, RELAY_ON_Pin);
+            osDelay(50);
+            LL_GPIO_SetOutputPin(PGA_M_GPIO_Port, PGA_M_Pin);/* un-MUTE PGA */
             break;
 
         default:

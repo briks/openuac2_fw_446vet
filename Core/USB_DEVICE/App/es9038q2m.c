@@ -721,3 +721,70 @@ void ES9038Q2M_ProcessEvents(void)
                                         &reg_val, 1, TIMEOUT_I2C_DELAY);
     }
 }
+
+/* ---- DAC input routing register fields ----------------------------------
+ * NOTE: verify the exact bit positions against your ES9038Q2M datasheet rev.
+ */
+
+/* Register 1, input_select field (commonly bits [3:2]) */
+#define REG1_INPUT_SELECT_MASK   (0x3U << 2)
+#define REG1_INPUT_SELECT_SERIAL (0x0U << 2)   /* I2S / LJ / RJ */
+#define REG1_INPUT_SELECT_SPDIF  (0x1U << 2)
+
+/* Register 8, gpio1_cfg = low nibble; gpio2_cfg = high nibble */
+#define REG8_GPIO1_CFG_MASK      0x0FU
+#define REG8_GPIO1_CFG_STD_INPUT 0x08U         /* 4'd8 : Standard Input (high-Z) */
+
+/* Register 18: SPDIF source = GPIO1 ("SPDIF Input 4").
+ * Adjust this value to match the datasheet encoding (one-hot vs index). */
+#define REG18_SPDIF_SRC_GPIO1    0x08U         /* input 4 */
+
+uint8_t ES9038Q2M_DAC_SetInput(ES9038Q2M_Input_t input)
+{
+    HAL_StatusTypeDef st;
+    uint8_t reg1, reg8;
+
+    st = HAL_I2C_Mem_Read(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
+                          ES9038Q2M_REG1_ADDR, I2C_MEMADD_SIZE_8BIT,
+                          &reg1, 1, TIMEOUT_I2C_DELAY);
+    if (st != HAL_OK) return 1;
+
+    st = HAL_I2C_Mem_Read(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
+                          ES9038Q2M_REG8_ADDR, I2C_MEMADD_SIZE_8BIT,
+                          &reg8, 1, TIMEOUT_I2C_DELAY);
+    if (st != HAL_OK) return 1;
+
+    /* Keep GPIO1 as high-Z Standard Input in ALL modes: a SPDIF signal toggling
+     * on GPIO1 must never be interpreted as the default "Analog Shutdown". */
+    reg8 = (uint8_t)((reg8 & ~REG8_GPIO1_CFG_MASK) | REG8_GPIO1_CFG_STD_INPUT);
+    reg1 &= ~REG1_INPUT_SELECT_MASK;
+
+    if (input == ES9038Q2M_INPUT_SPDIF)
+    {
+        reg1 |= REG1_INPUT_SELECT_SPDIF;
+
+        uint8_t spdif_src = REG18_SPDIF_SRC_GPIO1;
+        st = HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
+                               ES9038Q2M_REG18_ADDR, I2C_MEMADD_SIZE_8BIT,
+                               &spdif_src, 1, TIMEOUT_I2C_DELAY);
+        if (st != HAL_OK) return 1;
+        LOG_INFO("DAC input -> SPDIF (GPIO1)");
+    }
+    else
+    {
+        reg1 |= REG1_INPUT_SELECT_SERIAL;
+        LOG_INFO("DAC input -> I2S");
+    }
+
+    st = HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
+                           ES9038Q2M_REG8_ADDR, I2C_MEMADD_SIZE_8BIT,
+                           &reg8, 1, TIMEOUT_I2C_DELAY);
+    if (st != HAL_OK) return 1;
+
+    st = HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
+                           ES9038Q2M_REG1_ADDR, I2C_MEMADD_SIZE_8BIT,
+                           &reg1, 1, TIMEOUT_I2C_DELAY);
+    if (st != HAL_OK) return 1;
+
+    return 0;
+}

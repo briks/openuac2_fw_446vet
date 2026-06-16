@@ -33,6 +33,16 @@
 #define ES9038Q2M_REG101_ADDR 101 /* RO :     ADC readback */
 #define ES9038Q2M_REG102_ADDR 102 /* RO : MSB ADC readback */
 
+#define ES9038Q2M_REG1_ADDR   1  /* Input selection (input_select, auto_select) */
+#define ES9038Q2M_REG8_ADDR   8  /* GPIO1-2 configuration */
+#define ES9038Q2M_REG18_ADDR 18  /* SPDIF input source select */
+
+typedef enum
+{
+    ES9038Q2M_INPUT_I2S = 0,
+    ES9038Q2M_INPUT_SPDIF,
+} ES9038Q2M_Input_t;
+
 /* REG96 status bits 
 Bit Mnemonic Description
 [7:6] reserved
@@ -80,5 +90,6 @@ uint8_t ES9038Q2M_DAC_Play(void);
 uint8_t ES9038Q2M_DAC_Stop(void);
 void    ES9038Q2M_LogSpdifChannelStatus(void);
 void    ES9038Q2M_ProcessEvents(void);
+uint8_t ES9038Q2M_DAC_SetInput(ES9038Q2M_Input_t input);
 
 #endif /* _ES9038Q2M_H_ */
