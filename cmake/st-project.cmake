@@ -99,6 +99,7 @@ target_sources(
     "Core\\Src\\system_stm32f4xx.c"
     "Core\\Startup\\startup_stm32f446vetx.s"
     "Core\\USB_DEVICE\\App\\es9038q2m.c"
+    "Core\\USB_DEVICE\\App\\pga2311.c"
     "Core\\USB_DEVICE\\App\\audio_buffer.c"
     "Core\\USB_DEVICE\\App\\audio_desc.c"
     "Core\\USB_DEVICE\\App\\usb_device.c"

@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "es9038q2m.h"
+#include "pga2311.h"
 #include "main.h"
 #include "cmsis_os.h"
 #define LOG_LEVEL LOG_LEVEL_DBG
@@ -118,7 +119,7 @@ void ES9038Q2M_DAC_Volume_change(int8_t delta)
 
 uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol, uint8_t channel) /* Q8.8 dB from USB Audio class */
 {
-    LOG_INFO("requested volume %d change: %d", channel, vol);
+    LOG_DBG("requested volume %d change: %d", channel, vol);
     if (vol < AUDIO_MIN_VOL)
         vol = AUDIO_MIN_VOL;
     if (vol > AUDIO_MAX_VOL)
@@ -217,10 +218,7 @@ uint8_t convert_vol_to_register(int16_t volume_q88)
         attenuation = 0;
     if (attenuation > 255)
         attenuation = 255;
-    LOG_INFO("applying volume change: %d (registre=%u, %ddB)",
-        volume_q88,
-        (uint8_t)attenuation,
-          -attenuation / 2);
+
     return (uint8_t)attenuation;
 }
 
@@ -240,7 +238,7 @@ static void ES9038Q2M_UpdateLeds(void)
         g_pct = 0;
         r_pct = 0;
     }
-    else if (requested_mute)
+    else if (requested_mute && (current_source != SOURCE_LINE))
     {
         g_pct = MUTE_LED_POWER;
         r_pct = 0;
@@ -707,18 +705,29 @@ void ES9038Q2M_ProcessEvents(void)
         && (   (requested_volume_ch1 != es9038q2m_configured_volume_ch1)
             || (requested_volume_ch2 != es9038q2m_configured_volume_ch2)))
     {
-        uint8_t reg_val;
+        uint8_t reg_val_ch1;
+        uint8_t reg_val_ch2;
         es9038q2m_configured_volume_ch1 = requested_volume_ch1;
-        reg_val = convert_vol_to_register(es9038q2m_configured_volume_ch1);
+        reg_val_ch1 = convert_vol_to_register(es9038q2m_configured_volume_ch1);
         I2C_Status = HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
                                         ES9038Q2M_REG15_ADDR, I2C_MEMADD_SIZE_8BIT,
-                                        &reg_val, 1, TIMEOUT_I2C_DELAY);
+                                        &reg_val_ch1, 1, TIMEOUT_I2C_DELAY);
 
         es9038q2m_configured_volume_ch2 = requested_volume_ch2;
-        reg_val = convert_vol_to_register(es9038q2m_configured_volume_ch2);
+        reg_val_ch2 = convert_vol_to_register(es9038q2m_configured_volume_ch2);
         I2C_Status = HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
                                         ES9038Q2M_REG16_ADDR, I2C_MEMADD_SIZE_8BIT,
-                                        &reg_val, 1, TIMEOUT_I2C_DELAY);
+                                        &reg_val_ch2, 1, TIMEOUT_I2C_DELAY);
+
+        LOG_INFO("Applying volume change: %d/%d dB",
+          -reg_val_ch1 / 2,
+          -reg_val_ch2 / 2);
+        LOG_DBG("reg_val_ch1=%u, reg_val_ch2=%u", reg_val_ch1, reg_val_ch2);
+
+        /* Keep the analog LINE volume (PGA2311) in sync with USB/encoder volume.
+         * Harmless for digital sources (PGA path is muted/relay open then). */
+        PGA2311_SetVolume(es9038q2m_configured_volume_ch1,
+                          es9038q2m_configured_volume_ch2);
     }
 }
 

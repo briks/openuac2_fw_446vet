@@ -11,7 +11,7 @@
 #error "Composite device is unsupported."
 #endif
 
-#define LOG_LEVEL LOG_LEVEL_DBG // Set to LOG_LEVEL_DBG for full logs
+#define LOG_LEVEL LOG_LEVEL_INFO // Set to LOG_LEVEL_DBG for full logs
 #include "log.h"
 
 static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
@@ -109,7 +109,7 @@ void USBD_AUDIO_signal_volume_change(void)
     {
         LOG_ERR("interrupt EP busy on volume signal");
     }
-    LOG_INFO("signaled volume change on CN master");
+    LOG_DBG("signaled volume change on CN master");
 }
 
 static uint8_t USBD_AUDIO_GetStreamType(USBD_HandleTypeDef* pdev)
@@ -797,19 +797,19 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
             // Send new volume even if not applied yet
             if (LOBYTE(req->wValue) == CHANNEL_MASTER)
             {
-                LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u",
+                LOG_DBG("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u",
                          LOBYTE(req->wValue), requested_volume_ch1, req->wLength);
                 SET_DATA(pbuf, int16_t, (requested_volume_ch1 + requested_volume_ch2) / 2);
             }
             else if (LOBYTE(req->wValue) == CHANNEL_1)
             {
-                LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u",
+                LOG_DBG("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u",
                          LOBYTE(req->wValue), requested_volume_ch1, req->wLength);
                 SET_DATA(pbuf, int16_t, requested_volume_ch1);
             }
             else if (LOBYTE(req->wValue) == CHANNEL_2)
             {
-                LOG_INFO("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u", 
+                LOG_DBG("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u", 
                     LOBYTE(req->wValue), requested_volume_ch2, req->wLength);
                 SET_DATA(pbuf, int16_t, requested_volume_ch2);
             }

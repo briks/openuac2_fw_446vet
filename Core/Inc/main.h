@@ -44,6 +44,7 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 extern I2C_HandleTypeDef DAC_I2C_Handle;
+extern SPI_HandleTypeDef hspi4;
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

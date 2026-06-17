@@ -25,6 +25,7 @@
 #include "usb_device.h"
 #include "usbd_conf.h"
 #include "es9038q2m.h"
+#include "pga2311.h"
 #include "SEGGER_RTT.h"
 #include "stm32f4xx_it.h"
 #define LOG_LEVEL LOG_LEVEL_DBG
@@ -76,7 +77,7 @@ osThreadId LedsHandle;
 uint32_t LedsBuffer[LedsBufferSize / sizeof(uint32_t)];
 osStaticThreadDef_t LedsControlBlock;
 osThreadId SourceHandle;
-#define SourceBufferSize 512
+#define SourceBufferSize 1024
 uint32_t SourceBuffer[SourceBufferSize / sizeof(uint32_t)];
 osStaticThreadDef_t SourceControlBlock;
 osThreadId OnOffHandle;
@@ -198,6 +199,7 @@ int main(void)
     MX_USART2_UART_Init();
     /* USER CODE BEGIN 2 */
     SEGGER_RTT_Init();
+    PGA2311_Init();
 
     LOG_INFO("\n");
     LOG_INFO("");
@@ -1086,7 +1088,7 @@ static void Source_Switch(AudioSource_t start_source)
     /* Source is changing: mute everything (digital + analog), let it settle,
      * then bring up only the new path below. */
     ES9038Q2M_DAC_SetMute_Force(true);                       /* mute DAC path  */
-    LL_GPIO_ResetOutputPin(PGA_M_GPIO_Port, PGA_M_Pin);      /* mute PGA (active-low) */
+    PGA2311_Mute(true);                                      /* mute PGA (PGA_M) */
     LL_GPIO_ResetOutputPin(RELAY_ON_GPIO_Port, RELAY_ON_Pin);/* open LINE relay */
     LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port, MUX_SEL_Pin);  /* mux -> I2S3_SD (USB) path */
     LL_GPIO_ResetOutputPin(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin);/* disable SPDIF input HW */
@@ -1115,10 +1117,11 @@ static void Source_Switch(AudioSource_t start_source)
             break;
 
         case SOURCE_LINE:
-            /* analog LINE path: close input relay, settle, then unmute PGA */
+            /* analog LINE path: close input relay, settle, then unmute PGA.
+             * PGA2311 gain is already kept in sync by ES9038Q2M_ProcessEvents. */
             LL_GPIO_SetOutputPin(RELAY_ON_GPIO_Port, RELAY_ON_Pin);
             osDelay(50);
-            LL_GPIO_SetOutputPin(PGA_M_GPIO_Port, PGA_M_Pin);/* un-MUTE PGA */
+            PGA2311_Mute(false);                             /* un-mute PGA (PGA_M) */
             break;
 
         default:
