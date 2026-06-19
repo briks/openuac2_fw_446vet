@@ -19,12 +19,16 @@
 
 #define ES9038Q2M_I2C_DEV_ADDR     (0x48 << 1)
 
-#define ES9038Q2M_REG6_ADDR   6 /* De amphasis, DOP and volume ramp rate */
-#define ES9038Q2M_REG7_ADDR   7
+#define ES9038Q2M_REG1_ADDR   1  /* Input selection (serial_length/mode, auto_select, input_select) */
+#define ES9038Q2M_REG6_ADDR   6  /* De-emphasis, DOP and volume ramp rate */
+#define ES9038Q2M_REG7_ADDR   7  /* Filter bandwidth / system mute */
+#define ES9038Q2M_REG8_ADDR   8  /* GPIO1-2 configuration */
+#define ES9038Q2M_REG11_ADDR 11  /* SPDIF source select (spdif_sel [7:4]) */
 #define ES9038Q2M_REG14_ADDR 14
-#define ES9038Q2M_REG15_ADDR 15 /* Ch1 volume */
-#define ES9038Q2M_REG16_ADDR 16 /* Ch2 volume */
-#define ES9038Q2M_REG27_ADDR 27 /* General configuration*/
+#define ES9038Q2M_REG15_ADDR 15  /* Ch1 volume */
+#define ES9038Q2M_REG16_ADDR 16  /* Ch2 volume */
+#define ES9038Q2M_REG21_ADDR 21  /* GPIO input selection (gpio_sel1/2) */
+#define ES9038Q2M_REG27_ADDR 27  /* General configuration*/
 #define ES9038Q2M_REG70_ADDR 70 /* RO : SPDIF channel status / user status (start) */
 #define ES9038Q2M_REG93_ADDR 93 /* RO : SPDIF channel status / user status (end)   */
 #define ES9038Q2M_SPDIF_STATUS_COUNT (ES9038Q2M_REG93_ADDR - ES9038Q2M_REG70_ADDR + 1) /* 24 bytes */
@@ -33,9 +37,64 @@
 #define ES9038Q2M_REG101_ADDR 101 /* RO :     ADC readback */
 #define ES9038Q2M_REG102_ADDR 102 /* RO : MSB ADC readback */
 
-#define ES9038Q2M_REG1_ADDR   1  /* Input selection (input_select, auto_select) */
-#define ES9038Q2M_REG8_ADDR   8  /* GPIO1-2 configuration */
-#define ES9038Q2M_REG18_ADDR 18  /* SPDIF input source select */
+/* ---- REG1: Input selection ----------------------------------------------
+ * NOTE: auto_select [3:2] must be 2'b00 for input_select [1:0] to function. */
+#define REG1_SERIAL_LENGTH_MASK   (0x3U << 6)
+#define REG1_SERIAL_LENGTH_16BIT  (0x0U << 6)
+#define REG1_SERIAL_LENGTH_24BIT  (0x1U << 6)
+#define REG1_SERIAL_LENGTH_32BIT  (0x3U << 6)   /* default */
+
+#define REG1_SERIAL_MODE_MASK     (0x3U << 4)
+#define REG1_SERIAL_MODE_I2S      (0x0U << 4)   /* default */
+#define REG1_SERIAL_MODE_LJ       (0x1U << 4)
+#define REG1_SERIAL_MODE_RJ       (0x3U << 4)
+
+#define REG1_AUTO_SELECT_MASK     (0x3U << 2)
+#define REG1_AUTO_SELECT_DISABLE  (0x0U << 2)   /* required for manual input_select */
+#define REG1_AUTO_SELECT_DSD      (0x1U << 2)
+#define REG1_AUTO_SELECT_SPDIF    (0x2U << 2)
+#define REG1_AUTO_SELECT_ALL      (0x3U << 2)   /* chip default */
+
+#define REG1_INPUT_SELECT_MASK    (0x3U << 0)
+#define REG1_INPUT_SELECT_SERIAL  (0x0U << 0)   /* I2S / LJ / RJ (default) */
+#define REG1_INPUT_SELECT_SPDIF   (0x1U << 0)
+#define REG1_INPUT_SELECT_DSD     (0x3U << 0)
+
+/* ---- REG8: GPIO configuration (gpio1_cfg = low nibble, gpio2_cfg = high) --
+ * Per-GPIO config codes (gpioX_cfg):
+ *   4'd8  : Standard Input (high-Z, read back via REG65 / used by SPDIF decoder)
+ *   4'd13 : Analog Input Shutdown (RESET DEFAULT for both GPIOs) */
+#define REG8_GPIO1_CFG_MASK         0x0FU
+#define REG8_GPIO1_CFG_STD_INPUT    0x08U          /* 4'd8  */
+#define REG8_GPIO1_CFG_ANA_SHUTDOWN 0x0DU          /* 4'd13 (default) */
+#define REG8_GPIO2_CFG_MASK         0xF0U
+#define REG8_GPIO2_CFG_STD_INPUT    (0x08U << 4)
+#define REG8_GPIO2_CFG_ANA_SHUTDOWN (0x0DU << 4)   /* 4'd13 (default) */
+
+/* ---- REG11: SPDIF source select (spdif_sel [7:4], [3:0] reserved) --------
+ *   4'd0: DATA_CLK (default)  4'd1: DATA1  4'd2: DATA2
+ *   4'd3: GPIO1               4'd4: GPIO2 */
+#define REG11_SPDIF_SEL_MASK      0xF0U
+#define REG11_SPDIF_SEL_DATA_CLK  (0x0U << 4)
+#define REG11_SPDIF_SEL_DATA1     (0x1U << 4)
+#define REG11_SPDIF_SEL_DATA2     (0x2U << 4)
+#define REG11_SPDIF_SEL_GPIO1     (0x3U << 4)
+#define REG11_SPDIF_SEL_GPIO2     (0x4U << 4)
+
+/* ---- REG21: GPIO Input Selection -----------------------------------------
+ * Selects the input *type* assigned to a GPIO when that GPIO acts as an input.
+ *   gpio_sel2 [7:6], gpio_sel1 [5:4], [3:0] reserved
+ *     2'd0: serial (I2S/LJ) (default)  2'd1: SPDIF
+ *     2'd2: reserved                   2'd3: DSD */
+#define REG21_GPIO_SEL2_MASK      (0x3U << 6)
+#define REG21_GPIO_SEL2_SERIAL    (0x0U << 6)
+#define REG21_GPIO_SEL2_SPDIF     (0x1U << 6)
+#define REG21_GPIO_SEL2_DSD       (0x3U << 6)
+
+#define REG21_GPIO_SEL1_MASK      (0x3U << 4)
+#define REG21_GPIO_SEL1_SERIAL    (0x0U << 4)   /* default */
+#define REG21_GPIO_SEL1_SPDIF     (0x1U << 4)
+#define REG21_GPIO_SEL1_DSD       (0x3U << 4)
 
 typedef enum
 {

@@ -96,7 +96,7 @@ static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 	case AUDIO_CMD_FORMAT:
         if (codec->DAC_Format != NULL)
         {
-		codec->DAC_Format(*pbuf);
+		    codec->DAC_Format(*pbuf);
 		}
 		/* Format change: tear down current I2S, reconfigure clocks/GPIOs.
 		* DMA will be (re)started by PLAY, or here if we're already playing. */
@@ -107,11 +107,13 @@ static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 		{
 			RCC_I2S_SetFreq(haudio->sam_freq >> 2);
 			LL_GPIO_SetOutputPin(DSDOE_GPIO_Port, DSDOE_Pin);
+            LOG_WARN("Switch to DSD");
 		}
 		else  /* AUDIO_FORMAT_PCM */
 		{
 			LL_GPIO_ResetOutputPin(DSDOE_GPIO_Port, DSDOE_Pin);
 			RCC_I2S_SetFreq(haudio->sam_freq);
+            LOG_WARN("Switch to PCM");
 		}
 
 		/* If already playing, restart DMA in the new format. */

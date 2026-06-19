@@ -140,6 +140,8 @@ void Led_R_SetBrightness(uint8_t percent);      /* 0..100 */
 #define MUX_EN_GPIO_Port GPIOA
 #define MUX_SEL_Pin LL_GPIO_PIN_12
 #define MUX_SEL_GPIO_Port GPIOA
+#define DAC_GPIO2_Pin LL_GPIO_PIN_9
+#define DAC_GPIO2_GPIO_Port GPIOA       /* PA9 -> ES9038Q2M GPIO2 (not used yet) */
 #define DSDOE_Pin LL_GPIO_PIN_11
 #define DSDOE_GPIO_Port GPIOC
 #define TIM3_ETR_AUDIO_SYNC_Pin LL_GPIO_PIN_2
