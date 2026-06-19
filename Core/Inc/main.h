@@ -119,8 +119,8 @@ void Led_R_SetBrightness(uint8_t percent);      /* 0..100 */
 #define PGA_M_GPIO_Port GPIOE
 #define SPI4_CS_Pin LL_GPIO_PIN_11
 #define SPI4_CS_GPIO_Port GPIOE
-#define PDN_Pin LL_GPIO_PIN_14
-#define PDN_GPIO_Port GPIOB
+#define DAC_RST_Pin LL_GPIO_PIN_14
+#define DAC_RST_GPIO_Port GPIOB
 #define LED1_SPDIF_Pin LL_GPIO_PIN_15
 #define LED1_SPDIF_GPIO_Port GPIOB
 #define LED2_BT_Pin LL_GPIO_PIN_8

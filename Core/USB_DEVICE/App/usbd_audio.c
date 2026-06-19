@@ -207,7 +207,7 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
     USBD_LL_FlushEP(pdev, STREAMING_EP_ADDR);
     USBD_LL_FlushEP(pdev, FEEDBACK_EP_ADDR);
     USBD_LL_FlushEP(pdev, INTERRUPT_EP_ADDR);
-    if (USBD_LL_OpenEP(pdev, STREAMING_EP_ADDR, USBD_EP_TYPE_ISOC, USB_HS_MAX_PACKET_SIZE) != USBD_OK)
+    if (USBD_LL_OpenEP(pdev, STREAMING_EP_ADDR, USBD_EP_TYPE_ISOC, AUDIO_STREAM_MAX_PACKET_SIZE) != USBD_OK)
     {
         LOG_ERR("OpenEP streaming failed");
         return USBD_FAIL;
@@ -241,7 +241,7 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
     }
 
     /* Prepare Out endpoint to receive 1st packet */
-    USBD_LL_PrepareReceive(pdev, STREAMING_EP_ADDR, (uint8_t *)haudio->pkt_buf, USB_HS_MAX_PACKET_SIZE);
+    USBD_LL_PrepareReceive(pdev, STREAMING_EP_ADDR, (uint8_t *)haudio->pkt_buf, AUDIO_STREAM_MAX_PACKET_SIZE);
     USBD_LL_Transmit(pdev, FEEDBACK_EP_ADDR, (uint8_t *)&haudio->feedback_value, FEEDBACK_PACKET_SIZE);
 
     LOG_INFO("USB audio class init OK (HS)");
@@ -508,6 +508,7 @@ static uint8_t USBD_AUDIO_EP0_RxReady(USBD_HandleTypeDef *pdev)
         if (haudio->control.cmd == CS_SAM_FREQ_CONTROL) {
             uint32_t prev = haudio->sam_freq;
             haudio->sam_freq = *(uint32_t*)haudio->control.data;
+            LOG_WARN("host set sam_freq=%lu Hz", (unsigned long)haudio->sam_freq);
             if (prev != haudio->sam_freq) {
                 LOG_INFO("sample rate %lu → %lu Hz",
                          (unsigned long)prev, (unsigned long)haudio->sam_freq);
@@ -618,9 +619,9 @@ void USBD_AUDIO_Sync(USBD_HandleTypeDef *pdev)
 
     /* LED logic */
     if (   haudio->aud_buf.capacity != 0
-        && haudio->aud_buf.size * 4 > haudio->aud_buf.capacity * 3)
+        && haudio->aud_buf.size * 10 > haudio->aud_buf.capacity * 9 )
     {
-        LOG_WARN("audio buf reach 3/4 capacity, size=%lu capacity=%lu",
+        LOG_WARN("audio buf reach 90%% capacity, size=%lu capacity=%lu",
                  (unsigned long)haudio->aud_buf.size, (unsigned long)haudio->aud_buf.capacity);
     }
 }
@@ -650,7 +651,7 @@ static uint8_t USBD_AUDIO_IsoOutIncomplete(USBD_HandleTypeDef *pdev, uint8_t epn
 
     if (epnum == STREAMING_EP_NUM) {
         USBD_LL_PrepareReceive(pdev, STREAMING_EP_ADDR,
-                               (uint8_t*)haudio->pkt_buf, USB_HS_MAX_PACKET_SIZE);
+                               (uint8_t*)haudio->pkt_buf, AUDIO_STREAM_MAX_PACKET_SIZE);
 #if 0
         static uint32_t incomp_out = 0;
         if (++incomp_out % 100 == 0) {
@@ -677,12 +678,30 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
 
         if (haudio->stream_type != stream_type)
         {
-        	if (stream_type == AUDIO_FORMAT_DSD)
-        	{
-//    		AudioBuffer_Reset(&haudio->aud_buf, haudio->buf_cap >> 1);
-        	}
+            /* Stop cleanly before changing geometry/clock so we never restart DMA on a
+             * freshly-reset (empty) buffer. PLAY will re-prime and restart once the
+             * buffer refills past half. */
+            if (haudio->state == AUDIO_STATE_PLAYING)
+            {
+                itf->AUDIO_Cmd(NULL, 0, AUDIO_CMD_STOP);
+                haudio->state = AUDIO_STATE_STOPPED;
+            }
 
-        	haudio->stream_type = stream_type;
+            if (stream_type == AUDIO_FORMAT_DSD)
+            {
+                uint32_t dsd_cap = haudio->buf_cap;
+                if (dsd_cap * 2U > AUDIO_BUF_SIZE)   /* clamp only DSD256 */
+                    dsd_cap = AUDIO_BUF_SIZE / 2U;
+                if (dsd_cap != haudio->aud_buf.capacity)
+                    AudioBuffer_Reset(&haudio->aud_buf, dsd_cap);
+            }
+            else
+            {
+                if (haudio->buf_cap != haudio->aud_buf.capacity)
+                    AudioBuffer_Reset(&haudio->aud_buf, haudio->buf_cap);
+            }
+
+            haudio->stream_type = stream_type;
             itf->AUDIO_Cmd(&stream_type, 1, AUDIO_CMD_FORMAT);
         }
 
@@ -705,6 +724,16 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
 
     		if (haudio->stream_type == AUDIO_FORMAT_PCM)
     		{
+    			/* DSD-only transport rate (e.g. 705600): no valid PCM clock, so the
+    			 * stream must be DoP whose markers haven't appeared yet. Don't buffer
+    			 * this preamble - it can't be played and would just overflow. */
+    			if (!haudio->pcm_clock_ok)
+    			{
+    				USBD_LL_PrepareReceive(pdev, STREAMING_EP_ADDR,
+    									   (uint8_t*)haudio->pkt_buf, AUDIO_STREAM_MAX_PACKET_SIZE);
+    				return USBD_OK;
+    			}
+
     			uint32_t* pDst = (uint32_t*)&haudio->aud_buf.mem[haudio->aud_buf.wr_ptr];
     			uint32_t* pSrc = haudio->pkt_buf;
     			uint32_t* pEnd = (uint32_t*)&haudio->aud_buf.mem[haudio->aud_buf.capacity];
@@ -767,7 +796,7 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
     			//LL_GPIO_SetOutputPin(LED3_LINE_GPIO_Port, LED3_LINE_Pin);
     		}
 
-    		USBD_LL_PrepareReceive(pdev, STREAMING_EP_ADDR, (uint8_t*)haudio->pkt_buf, USB_HS_MAX_PACKET_SIZE);
+    		USBD_LL_PrepareReceive(pdev, STREAMING_EP_ADDR, (uint8_t*)haudio->pkt_buf, AUDIO_STREAM_MAX_PACKET_SIZE);
     }
 
     return USBD_OK;

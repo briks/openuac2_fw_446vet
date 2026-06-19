@@ -25,7 +25,7 @@ USBD_AUDIO_ItfTypeDef USBD_AUDIO_fops =
   AUDIO_GetState,
 };
 
-static void RCC_I2S_SetFreq(uint32_t freq)
+static bool RCC_I2S_SetFreq(uint32_t freq)
 {
     __HAL_I2S_DISABLE(&AUDIO_I2S_MSTR_HANDLE);
     LL_RCC_PLLI2S_Disable();
@@ -33,36 +33,44 @@ static void RCC_I2S_SetFreq(uint32_t freq)
     uint32_t divisor;
     if (freq % 48000U == 0)
     {
-        LL_RCC_PLLI2S_ConfigDomain_I2S(LL_RCC_PLLSOURCE_HSE,
-                                       LL_RCC_PLLI2SM_DIV_16,
-                                       128,
-                                       LL_RCC_PLLI2SR_DIV_2);
+        LL_RCC_PLLI2S_ConfigDomain_I2S(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLI2SM_DIV_16,
+                                       128, LL_RCC_PLLI2SR_DIV_2);
         divisor = PLLI2SQ_48K / (freq << 7U);
-        MODIFY_REG(AUDIO_I2S_MSTR_HANDLE.Instance->I2SPR, SPI_I2SPR_I2SDIV_Msk, divisor);
-        LOG_DBG("PLLI2S → 48k family, N=128, I2SDIV=%lu", (unsigned long) divisor);
     }
     else
     {
-        LL_RCC_PLLI2S_ConfigDomain_I2S(LL_RCC_PLLSOURCE_HSE,
-                                       LL_RCC_PLLI2SM_DIV_20,
-                                       147,
-                                       LL_RCC_PLLI2SR_DIV_2);
+        LL_RCC_PLLI2S_ConfigDomain_I2S(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLI2SM_DIV_20,
+                                       147, LL_RCC_PLLI2SR_DIV_2);
         divisor = PLLI2SQ_44K1 / (freq << 7U);
-        MODIFY_REG(AUDIO_I2S_MSTR_HANDLE.Instance->I2SPR, SPI_I2SPR_I2SDIV_Msk, divisor);
-        LOG_DBG("PLLI2S → 44k1 family, N=147, I2SDIV=%lu", (unsigned long) divisor);
     }
+
+    /* I2SDIV 0 and 1 are forbidden on STM32F4. A request that resolves to <2
+     * is an unsupportable PCM rate (e.g. 705600 = DSD256 DoP transport rate).
+     * Skip it: the DSD path will set the real (sam_freq>>2) clock shortly. */
+    if (divisor < 2U)
+    {
+        LOG_ERR("I2S freq %lu Hz needs I2SDIV=%lu (<2, forbidden) - skipped",
+                (unsigned long)freq, (unsigned long)divisor);
+        LL_RCC_PLLI2S_Enable();
+        return false;
+    }
+
+    MODIFY_REG(AUDIO_I2S_MSTR_HANDLE.Instance->I2SPR, SPI_I2SPR_I2SDIV_Msk, divisor);
 
     LL_RCC_PLLI2S_Enable();
     uint32_t timeout = 100000;
-    while (!LL_RCC_PLLI2S_IsReady() && --timeout)
-    {
-        __NOP();
-    }
+    while (!LL_RCC_PLLI2S_IsReady() && --timeout) { __NOP(); }
     if (timeout == 0)
     {
-        LOG_ERR("PLLI2S failed to lock for freq=%lu Hz", (unsigned long) freq);
+        LOG_ERR("PLLI2S failed to lock for freq=%lu Hz", (unsigned long)freq);
+        return false;
     }
+
+    LOG_WARN("PLLI2S locked, freq=%lu Hz, I2SDIV=%lu",
+             (unsigned long)freq, (unsigned long)divisor);
+
     __HAL_I2S_ENABLE(&AUDIO_I2S_MSTR_HANDLE);
+    return true;
 }
 
 static uint8_t AUDIO_Init()
@@ -95,41 +103,25 @@ static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
   {
 	case AUDIO_CMD_FORMAT:
         if (codec->DAC_Format != NULL)
+            codec->DAC_Format(*pbuf);
+
+        HAL_I2S_DMAStop(&AUDIO_I2S_MSTR_HANDLE);
+        HAL_I2S_DMAStop(&AUDIO_I2S_SLAVE_HANDLE);
+
+        if (*pbuf == AUDIO_FORMAT_DSD)
         {
-		    codec->DAC_Format(*pbuf);
-		}
-		/* Format change: tear down current I2S, reconfigure clocks/GPIOs.
-		* DMA will be (re)started by PLAY, or here if we're already playing. */
-		HAL_I2S_DMAStop(&AUDIO_I2S_MSTR_HANDLE);
-		HAL_I2S_DMAStop(&AUDIO_I2S_SLAVE_HANDLE);
-
-		if (*pbuf == AUDIO_FORMAT_DSD)
-		{
-			RCC_I2S_SetFreq(haudio->sam_freq >> 2);
-			LL_GPIO_SetOutputPin(DSDOE_GPIO_Port, DSDOE_Pin);
+            RCC_I2S_SetFreq(haudio->sam_freq >> 2);
+            LL_GPIO_SetOutputPin(DSDOE_GPIO_Port, DSDOE_Pin);
             LOG_WARN("Switch to DSD");
-		}
-		else  /* AUDIO_FORMAT_PCM */
-		{
-			LL_GPIO_ResetOutputPin(DSDOE_GPIO_Port, DSDOE_Pin);
-			RCC_I2S_SetFreq(haudio->sam_freq);
+        }
+        else
+        {
+            LL_GPIO_ResetOutputPin(DSDOE_GPIO_Port, DSDOE_Pin);
+            RCC_I2S_SetFreq(haudio->sam_freq);
             LOG_WARN("Switch to PCM");
-		}
-
-		/* If already playing, restart DMA in the new format. */
-		if (haudio->state == AUDIO_STATE_PLAYING)
-		{
-			if (*pbuf == AUDIO_FORMAT_DSD)
-			{
-				HAL_I2S_Transmit_DMA(&AUDIO_I2S_SLAVE_HANDLE,
-									(uint16_t*)&aud_buf->mem[aud_buf->capacity],
-									aud_buf->capacity >> 2);
-			}
-			HAL_I2S_Transmit_DMA(&AUDIO_I2S_MSTR_HANDLE,
-								(uint16_t*)aud_buf->mem,
-								aud_buf->capacity >> 2);
-		}
-		break;
+        }
+        /* No DMA restart here: state is STOPPED; PLAY re-primes and restarts. */
+        break;
 
     case AUDIO_CMD_PLAY:
         if (codec->DAC_Play != NULL)
@@ -165,11 +157,11 @@ static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 
 	case AUDIO_CMD_FREQ:
         if (codec->DAC_Freq != NULL)
-        {
             codec->DAC_Freq(*(uint32_t *)pbuf);
-        }
-		RCC_I2S_SetFreq(*(uint32_t*)pbuf);
-		break;
+        /* This sets the PCM clock; record whether the rate is PCM-playable.
+         * DSD-only rates (e.g. 705600) will report false here. */
+        haudio->pcm_clock_ok = RCC_I2S_SetFreq(*(uint32_t*)pbuf);
+        break;
 
 	case AUDIO_CMD_MUTE:
         if (codec->DAC_Mute != NULL)

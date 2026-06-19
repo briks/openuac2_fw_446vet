@@ -147,7 +147,7 @@ void Error_Handler_nonBlocking(char *errorStr, errorNbr errorBit_nBr)
 {
     errors_mask |= 1 << errorBit_nBr;
     LOG_ERR("%s (bit %u)", errorStr ? errorStr : "?", (unsigned)errorBit_nBr);
-    Error_Handler();
+    //Error_Handler();
 }
 
 /* USER CODE END 0 */
@@ -215,10 +215,11 @@ int main(void)
     LOG_INFO("");
     LL_GPIO_SetOutputPin(ANALOG_ON_GPIO_Port, ANALOG_ON_Pin);
     HAL_Delay(100);
-    LL_GPIO_ResetOutputPin(PDN_GPIO_Port, PDN_Pin);
+    LL_GPIO_ResetOutputPin(DAC_RST_GPIO_Port, DAC_RST_Pin);
     LL_GPIO_ResetOutputPin(MUX_EN_GPIO_Port, MUX_EN_Pin);
     LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port, MUX_SEL_Pin);
     ES9038Q2M_ProcessEvents(); // Call it one time to init values, before starting usb.
+    ES9038Q2M_DAC_Init(); // Init DAC, also done in USB, but in case USB is not started...
     MX_USB_DEVICE_Init();
     LOG_INFO("USB device init done");
     LL_TIM_EnableIT_UPDATE(TIM3);
@@ -657,7 +658,7 @@ static void MX_USB_OTG_HS_PCD_Init(void)
     }
     /* USER CODE BEGIN USB_OTG_HS_Init 2 */
     /* Total fido should be <=4096, so <=1024 words, rx + tx ? */
-    HAL_PCDEx_SetRxFiFo(&hpcd_USB_OTG_HS, 0x200);
+    HAL_PCDEx_SetRxFiFo(&hpcd_USB_OTG_HS, 0x200);   /* 512 words = 2048 B ≥ 1024 ✓ */
     HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_HS, 0, 0x40);
     HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_HS, 1, 0x174); /* streaming feedback */
     HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_HS, 2, 0x20);  /* interrupt status, 6B */
@@ -754,7 +755,7 @@ static void MX_GPIO_Init(void)
     LL_GPIO_ResetOutputPin(GPIOC, RELAY_ON_Pin | On_L_Pin | On_R_Pin | SEL_SPDIF_Pin | DSDOE_Pin);
 
     /**/
-    LL_GPIO_ResetOutputPin(GPIOB, PDN_Pin | LED1_SPDIF_Pin | BT_PWR_Pin);
+    LL_GPIO_ResetOutputPin(GPIOB, DAC_RST_Pin | LED1_SPDIF_Pin | BT_PWR_Pin);
 
     /**/
     LL_GPIO_ResetOutputPin(GPIOD, LED2_BT_Pin | LED3_LINE_Pin | LED4_USB_Pin | BT_RST_Pin);
@@ -787,7 +788,7 @@ static void MX_GPIO_Init(void)
     LL_GPIO_Init(SPI4_CS_GPIO_Port, &GPIO_InitStruct);
 
     /**/
-    GPIO_InitStruct.Pin = PDN_Pin | LED1_SPDIF_Pin | BT_PWR_Pin;
+    GPIO_InitStruct.Pin = DAC_RST_Pin | LED1_SPDIF_Pin | BT_PWR_Pin;
     GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
     GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;

@@ -184,8 +184,8 @@ const uint8_t USBD_AUDIO_CfgDesc[USB_AUDIO_CONFIG_DESC_SIZE] __attribute__((alig
         USB_DESC_TYPE_ENDPOINT,         // bDescriptorType
         STREAMING_EP_ADDR,              // bEndpointAddress + sink(out) type
         STREAMING_EP_ATTRIB,            // bmAttributes
-        LOBYTE(USB_HS_MAX_PACKET_SIZE), // wMaxPacketSize
-        HIBYTE(USB_HS_MAX_PACKET_SIZE),
+        LOBYTE(AUDIO_STREAM_MAX_PACKET_SIZE), // wMaxPacketSize
+        HIBYTE(AUDIO_STREAM_MAX_PACKET_SIZE),
         STREAMING_HS_BINTERVAL, // bInterval
 
         // Class specific -------------------------------------------

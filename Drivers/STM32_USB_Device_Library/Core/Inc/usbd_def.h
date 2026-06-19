@@ -153,6 +153,11 @@ extern "C" {
 #define USB_IAD_DESC_SIZE                               0x08U
 
 #define USB_HS_MAX_PACKET_SIZE                          512U
+/* Streaming ISO OUT endpoint packet size.
+ * 1024 B/µframe -> max rate = 1024 * 8000 / 8 = 1,024,000 Hz,
+ * required for DSD256-over-DoP (705,600 Hz). 512 only reaches 512 kHz. */
+#define AUDIO_STREAM_MAX_PACKET_SIZE                    1024U
+
 #define USB_FS_MAX_PACKET_SIZE                          64U
 #define USB_MAX_EP0_SIZE                                64U
 

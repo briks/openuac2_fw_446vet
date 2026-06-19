@@ -206,7 +206,7 @@ typedef struct
 typedef struct
 {
     USBD_AUDIO_ControlTypeDef control;
-    uint32_t pkt_buf[USB_HS_MAX_PACKET_SIZE >> 2];
+    uint32_t pkt_buf[AUDIO_STREAM_MAX_PACKET_SIZE >> 2];
     uint32_t buf_cap;
     uint32_t alt_setting;
     uint32_t sam_freq;
@@ -218,6 +218,7 @@ typedef struct
     uint8_t bit_depth;
     uint8_t stream_type;
     uint8_t state;
+    uint8_t pcm_clock_ok;   /* 0 when current sam_freq has no valid PCM I2S clock (DSD-only rate) */
 } USBD_AUDIO_HandleTypeDef;
 
 typedef struct
