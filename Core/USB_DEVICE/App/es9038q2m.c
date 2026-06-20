@@ -11,6 +11,7 @@
 #define TIMEOUT_I2C_DELAY   10   /* ms; could be HAL_MAX_DELAY for infinite */
 
 static uint8_t play;
+static bool DAC_initialized = false;
 
 volatile int16_t requested_volume_ch1 = AUDIO_CUR_VOL;                /* set at boot, host range */
 volatile int16_t requested_volume_ch2 = AUDIO_CUR_VOL;                /* set at boot, host range */
@@ -39,10 +40,18 @@ uint8_t ES9038Q2M_DAC_Init(void)
     uint8_t registre;
     uint8_t regread;
 
+    // Init DAC only once.
+    // Keep init in USB in case of Deinit/Init is called (reinit)
+    if (DAC_initialized)
+    {
+        LOG_INFO("ES9038Q2M_DAC_Init... skipped, already initialized");
+        return USBD_OK;
+    }
+
     LOG_INFO("ES9038Q2M_DAC_Init...");
-    LL_GPIO_ResetOutputPin(PDN_GPIO_Port, PDN_Pin);
+    LL_GPIO_ResetOutputPin(DAC_RST_GPIO_Port, DAC_RST_Pin);
     HAL_Delay(10);                    /* may be called from ISR context; osDelay not allowed */
-    LL_GPIO_SetOutputPin(PDN_GPIO_Port, PDN_Pin);
+    LL_GPIO_SetOutputPin(DAC_RST_GPIO_Port, DAC_RST_Pin);
     HAL_Delay(100);
 
     /* GPIO1 = Standard Input (high-Z) so the SPDIF decoder can read it.
@@ -120,6 +129,7 @@ uint8_t ES9038Q2M_DAC_Init(void)
 uint8_t ES9038Q2M_DAC_DeInit(void)
 {
     LOG_INFO("ES9038Q2M_DAC_DeInit, nothing to do.");
+    DAC_initialized = false;
     return 0;
 }
 
@@ -197,6 +207,11 @@ HAL_StatusTypeDef ES9038Q2M_DAC_SetMute_Immediate(bool mute)
   Not a host request, so signal mute change to host */
 void ES9038Q2M_DAC_SetMute_Force(bool mute)
 {
+    if ((EtatAmp != AMP_ON) && !mute)
+    {
+        LOG_DBG("DAC_SetMute_Force while amp not ON, ignoring");
+        return;
+    }
     LOG_INFO("DAC_SetMute_Force %s", mute ? "MUTE" : "UNMUTE");
     requested_mute = mute;
     es9038q2m_configured_mute = mute;
@@ -369,6 +384,7 @@ static void ES9038Q2M_DecodeSpdifChannelStatus(const uint8_t *cs)
     /* Byte 4 (REG74): word length [3:1], word field size bit0 ----------- */
     bool    max24   = (cs[4] & 0x01) != 0;     /* 0=max20bit 1=max24bit     */
     uint8_t wl_code = (cs[4] >> 1) & 0x07;      /* field value (see mapping) */
+    #if defined (REVERSE_ORDER)
     /* Mapping derived from the datasheet's LSB-first code table:
       *   value : max20 / max24
       *     0   : not indicated
@@ -379,6 +395,21 @@ static void ES9038Q2M_DecodeSpdifChannelStatus(const uint8_t *cs)
       *     5   : 24 / 20 bits                                              */
     static const uint8_t wl_max20[6] = { 0, 23, 22, 21, 20, 24 };
     static const uint8_t wl_max24[6] = { 0, 19, 18, 17, 16, 20 };
+    #else
+    /* Mapping derived from the datasheet's:
+      *   value : max20 / max24
+      *     0   : not indicated
+      *     1   : 20 / 16 bits
+      *     2   : 22 / 18 bits
+      *     3   : 0  / 0 bits
+      *     4   : 23 / 19 bits
+      *     5   : 24 / 20 bits                                              
+      *     6   : 21 / 17 bits
+      *     7   : 0  / 0 bits */
+    static const uint8_t wl_max20[8] = { 0, 16, 18, 0, 19, 20, 17, 0 };
+    static const uint8_t wl_max24[8] = { 0, 20, 22, 0, 23, 24, 21, 0 };
+    #endif
+
     uint8_t word_bits = 0;
     if (wl_code < 6)
         word_bits = max24 ? wl_max24[wl_code] : wl_max20[wl_code];
@@ -587,8 +618,7 @@ static void ES9038Q2M_DecodeSpdifChannelStatusPro(const uint8_t *cs)
   * Values are cached and only logged when they change, to avoid log spam. */
 void ES9038Q2M_LogSpdifChannelStatus(void)
 {
-    static uint8_t cached[ES9038Q2M_SPDIF_STATUS_COUNT];
-    static bool    cache_valid = false;
+    static uint8_t cached[ES9038Q2M_SPDIF_STATUS_COUNT] = {0};
     uint8_t        buf[ES9038Q2M_SPDIF_STATUS_COUNT];
 
     HAL_StatusTypeDef st = HAL_I2C_Mem_Read(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR,
@@ -602,11 +632,10 @@ void ES9038Q2M_LogSpdifChannelStatus(void)
     }
 
     /* Only print when something actually changed */
-    if (cache_valid && memcmp(cached, buf, sizeof(buf)) == 0)
+    if (memcmp(cached, buf, sizeof(buf)) == 0)
         return;
 
     memcpy(cached, buf, sizeof(buf));
-    cache_valid = true;
 
     LOG_INFO("SPDIF Channel/User Status (REG70-93):");
     for (uint8_t i = 0; i < ES9038Q2M_SPDIF_STATUS_COUNT; i += 4)

@@ -1097,7 +1097,7 @@ static void Source_Switch(AudioSource_t start_source)
     /* MUX_EN is active-low and left enabled (low) at all times */
     osDelay(50);
 
-    switch (new_source)
+    switch (new_source) // Unmute done only if EtatAmp is AMP_ON
     {
         case SOURCE_USB:
             /* mux already on I2S3_SD (USB) path, DAC on I2S */
@@ -1106,7 +1106,7 @@ static void Source_Switch(AudioSource_t start_source)
 
         case SOURCE_SPDIF:
             /* enable SPDIF input HW, switch DAC to its SPDIF input (DAC GPIO1) */
-            LL_GPIO_SetOutputPin(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin);
+            LL_GPIO_ResetOutputPin(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin);
             ES9038Q2M_DAC_SetInput(ES9038Q2M_INPUT_SPDIF);
             ES9038Q2M_DAC_SetMute_Force(false);              /* un-mute DAC */
             break;

@@ -71,6 +71,16 @@ USBD_ClassTypeDef USBD_AUDIO =
 
 void USBD_AUDIO_signal_mute_change(void)
 {
+    /* Don't touch the interrupt EP unless the device is fully enumerated and
+     * configured. Called from the DAC layer (e.g. forced mute on amp power),
+     * which can run before USB is up or after suspend/disconnect. */
+    if (hUsbDeviceHS.dev_state != USBD_STATE_CONFIGURED)
+    {
+        LOG_DBG("skip mute signal: USB not configured (state=%u)",
+                hUsbDeviceHS.dev_state);
+        return;
+    }
+
     s_Haudio.interrupt_mute_ctrl->wValueLowByte = CHANNEL_MASTER; // master channel only
     LOG_DBG("Interrupt message : 0x%02X%02X %02X%02X %02X%02X",
             s_Haudio.interrupt_mute_ctrl->binfo,
@@ -80,8 +90,6 @@ void USBD_AUDIO_signal_mute_change(void)
             s_Haudio.interrupt_mute_ctrl->wIndexLowByte,
             s_Haudio.interrupt_mute_ctrl->wIndexHighByte);
 
-    // force data0
-    // USBD_LL_ClearStallEP(&hUsbDeviceHS, INTERRUPT_EP_ADDR);
     if (USBD_LL_Transmit(&hUsbDeviceHS, INTERRUPT_EP_ADDR,
                           (uint8_t *)s_Haudio.interrupt_mute_ctrl,
                           INTERRUPT_PACKET_SIZE) != USBD_OK)
@@ -93,6 +101,13 @@ void USBD_AUDIO_signal_mute_change(void)
 
 void USBD_AUDIO_signal_volume_change(void)
 {
+    if (hUsbDeviceHS.dev_state != USBD_STATE_CONFIGURED)
+    {
+        LOG_DBG("skip volume signal: USB not configured (state=%u)",
+                hUsbDeviceHS.dev_state);
+        return;
+    }
+
     s_Haudio.interrupt_volume_ctrl->wValueLowByte = CHANNEL_MASTER;
 
     LOG_DBG("Interrupt message : 0x%02X%02X %02X%02X %02X%02X",
