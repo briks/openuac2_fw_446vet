@@ -24,6 +24,7 @@
 #define ES9038Q2M_REG7_ADDR   7  /* Filter bandwidth / system mute */
 #define ES9038Q2M_REG8_ADDR   8  /* GPIO1-2 configuration */
 #define ES9038Q2M_REG11_ADDR 11  /* SPDIF source select (spdif_sel [7:4]) */
+#define ES9038Q2M_REG12_ADDR 12  /* DPLL bandwidth: [7:4]=serial, [3:0]=DSD */
 #define ES9038Q2M_REG14_ADDR 14
 #define ES9038Q2M_REG15_ADDR 15  /* Ch1 volume */
 #define ES9038Q2M_REG16_ADDR 16  /* Ch2 volume */

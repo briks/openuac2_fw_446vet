@@ -200,7 +200,6 @@ int main(void)
     MX_USART2_UART_Init();
     /* USER CODE BEGIN 2 */
     SEGGER_RTT_Init();
-    PGA2311_Init();
 
     LOG_INFO("\n");
     LOG_INFO("");
@@ -214,6 +213,10 @@ int main(void)
     LOG_INFO("        \\/                \\/      \\_/    \\/      \\/|__|   \\/");
     LOG_INFO("");
     LOG_INFO("");
+
+    PGA2311_Init();
+    BT_Init();            // power up BT module + arm UART RX (uses HAL_Delay)
+
     LL_GPIO_SetOutputPin(ANALOG_ON_GPIO_Port, ANALOG_ON_Pin);
     HAL_Delay(100);
     LL_GPIO_ResetOutputPin(DAC_RST_GPIO_Port, DAC_RST_Pin);
@@ -994,7 +997,9 @@ void Events_Thread(void const *argument)
     /* Infinite loop */
     for (;;)
     {
+        osDelay(5); // ms
         ES9038Q2M_ProcessEvents();
+        BT_Process();                /* drain UART, parse BT responses + events */
     }
     /* USER CODE END 5 */
 }
@@ -1215,20 +1220,18 @@ static void Source_Switch(AudioSource_t start_source)
  */
 void Source_Thread(void const *argument)
 {
-    /* power up the BT module and start UART reception (needs the scheduler) */
-    BT_Init();
+    /* Module readiness wait is handled inside BT_QueryInfo (tick-based). */
+    BT_QueryInfo();
 
     for (;;)
     {
         osDelay(50);
 
         PowerButton_Process();
-        BT_Process();                 /* drain UART, update BT connection state */
 
         if (EtatAmp != AMP_ON)
             continue;
 
-        /* Short press while ON: cycle to next available source */
         if (short_press_pending && EtatAmp == AMP_ON)
         {
             short_press_pending = false;

@@ -125,6 +125,22 @@ uint8_t ES9038Q2M_DAC_Init(void)
                       I2C_MEMADD_SIZE_8BIT, &regread,  1, TIMEOUT_I2C_DELAY);
     LOG_DBG("REG6 after init: 0x%02X", regread);
 
+    /* REG12: DPLL bandwidth. The BT module is the I2S master and runs from its
+     * own crystal, so its BCLK/WS are asynchronous to the DAC MCLK and carry
+     * jitter. The reset default is tuned for a clean synchronous source (USB)
+     * and is too narrow here: the residual jitter is audible as crackle that
+     * grows with signal frequency (worst in the treble). Widen the serial DPLL
+     * bandwidth so the DPLL/ASRC tracks the jittery clock cleanly.
+     *   [7:4] = serial bandwidth (try 0x0A, raise to 0x0F if still noisy)
+     *   [3:0] = DSD bandwidth (kept the same)
+     * Pick the narrowest value that removes the crackle: too wide lets through
+     * a bit more noise floor, too narrow lets jitter/unlock artifacts pass. */
+    // registre = 0x5A;
+    // HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG12_ADDR,
+    //                   I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
+    // HAL_I2C_Mem_Read (&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG12_ADDR,
+    //                   I2C_MEMADD_SIZE_8BIT, &regread,  1, TIMEOUT_I2C_DELAY);
+    // LOG_WARN("REG12 (DPLL bw) after init: 0x%02X", regread);
 
     /* Start muted; will unmute when amp powers on (even if host starts unmuted). */
     ES9038Q2M_DAC_SetMute_Force(true);
@@ -679,7 +695,6 @@ void ES9038Q2M_ProcessEvents(void)
     static uint32_t cnt = 0;
     static uint8_t status_register = 0;
 
-    osDelay(5); // ms
     cnt++;
 
     ES9038Q2M_UpdateLeds();

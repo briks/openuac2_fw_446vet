@@ -16,6 +16,7 @@
  */
 
 void BT_Init(void);          /* power on + start UART reception */
+void BT_QueryInfo(void);     /* send AT+VER/NAME/LENAME (call after scheduler start) */
 void BT_PowerOn(void);
 void BT_PowerOff(void);
 bool BT_IsPoweredOn(void);

@@ -184,6 +184,8 @@ extern volatile AmpState_t EtatAmp;      /* current amp state */
 
 extern volatile AudioSource_t current_source;
 
+extern UART_HandleTypeDef huart2;
+
 /* SEL_SPDIF (PC4) selects the physical SPDIF input: low = optical, high = coax */
 #define SPDIF_INPUT_OPTICAL  0u
 #define SPDIF_INPUT_COAX     1u
