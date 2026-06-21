@@ -1043,39 +1043,114 @@ void Leds_Thread(void const *argument)
  * Cycle order: USB -> SPDIF -> BT -> LINE -> USB ...
  * -------------------------------------------------------------------------- */
 
+const char *Spdif_GetInputTypeStr(void)
+{
+    return (LL_GPIO_IsOutputPinSet(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin) == SPDIF_INPUT_COAX)
+               ? "coax" : "optical";
+}
+
+/* --- SPDIF active probe -----------------------------------------------------
+ * Switch the DAC to its SPDIF input and look for a real stream: 500 ms on
+ * optical, then 500 ms on coax. Returns true as soon as a stream is detected,
+ * leaving SEL_SPDIF on the input where it was found. */
+static bool Spdif_Probe(void)
+{
+    ES9038Q2M_DAC_SetInput(ES9038Q2M_INPUT_SPDIF);
+
+    /* optical first (SEL_SPDIF low) */
+    LL_GPIO_ResetOutputPin(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin);
+    LOG_DBG("SPDIF probe: optical (500ms)");
+    osDelay(500);
+    if (ES9038Q2M_SpdifPresent())
+    {
+        LOG_INFO("SPDIF stream found on optical");
+        return true;
+    }
+
+    /* then coax (SEL_SPDIF high) */
+    LL_GPIO_SetOutputPin(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin);
+    LOG_DBG("SPDIF probe: coax (500ms)");
+    osDelay(500);
+    if (ES9038Q2M_SpdifPresent())
+    {
+        LOG_INFO("SPDIF stream found on coax");
+        return true;
+    }
+
+    LOG_DBG("SPDIF probe: no stream found");
+    return false;
+}
+ 
+/* Mute the whole audio path unconditionally (digital DAC + analog PGA).
+ * Mute is always safe, so unlike Source_Unmute() it is NOT gated on amp state
+ * or current source: both paths are silenced every time. */
+static void Source_Mute(void)
+{
+    ES9038Q2M_DAC_SetMute_Force(true);   /* mute DAC path    */
+    PGA2311_Mute(true);                  /* mute PGA (PGA_M) */
+}
+
+/* Unmute the audio path for the given source, but only once the amp is fully
+ * ON. While AMP_POWERING/OFF this is a no-op (deferred), so audio never comes
+ * up before the power sequence completes.
+ *   - LINE  : analog path -> PGA2311
+ *   - other : digital path -> DAC (SetMute_Force is itself AMP_ON-gated) */
+static void Source_Unmute(AudioSource_t src)
+{
+    if (EtatAmp != AMP_ON)
+    {
+        LOG_DBG("Source_Unmute(%s) while amp not ON, deferred", sources[src].name);
+        return;
+    }
+
+    if (src == SOURCE_LINE)
+        PGA2311_Mute(false);                 /* un-mute PGA (PGA_M) */
+    else
+        ES9038Q2M_DAC_SetMute_Force(false);  /* un-mute DAC */
+}
+
+// Could return immediately if the source is already active
+// Must wait up to 1 second before returning false
 static bool Source_IsAvailable(AudioSource_t src)
 {
     switch (src)
     {
     case SOURCE_USB:
         /* "connected" = enumerated and configured by the host */
+        if (hUsbDeviceHS.dev_state == USBD_STATE_CONFIGURED)
+            return true;
+        osDelay(1000);                      /* give it a second to enumerate */
         return (hUsbDeviceHS.dev_state == USBD_STATE_CONFIGURED);
 
+    case SOURCE_SPDIF:
+        /* active probe: 500 ms optical, then 500 ms coax (~1 s total) */
+        return Spdif_Probe();
+
     case SOURCE_BT:
-        /* available only if a phone/device is actually connected */
+        if (BT_IsConnected())
+            return true;
+        osDelay(1000);                      /* give it a second to connect */
         return BT_IsConnected();
 
-    case SOURCE_SPDIF:
     case SOURCE_LINE:
     default:
-        return true;   /* detection not implemented yet */
+        return true;                        /* always available */
     }
 }
 
-
-/* Try to find a source in one loop starting by the given one */
+/* Try to find a source in one loop starting by the given one.
+ * LINE is always available, so the loop always terminates there at worst. */
 static AudioSource_t Source_Search(AudioSource_t start_source)
 {
     for (uint8_t i = 0; i < SOURCE_COUNT; i++)
     {
         AudioSource_t candidate = (AudioSource_t)((start_source + i) % SOURCE_COUNT);
         LL_GPIO_SetOutputPin(sources[candidate].GPIOx, sources[candidate].PinMask);
-        if (Source_IsAvailable(candidate))
+        if (Source_IsAvailable(candidate))      /* per-source check + timing */
             return candidate;
-        osDelay(500);
         LL_GPIO_ResetOutputPin(sources[candidate].GPIOx, sources[candidate].PinMask);
     }
-    return start_source;   /* none else available, keep current */
+    return start_source;   /* should not happen: LINE is always available */
 }
 
 static void Source_Switch(AudioSource_t start_source)
@@ -1084,55 +1159,49 @@ static void Source_Switch(AudioSource_t start_source)
 
     AudioSource_t new_source = Source_Search(start_source);
 
-    if (new_source == current_source &&  EtatAmp == AMP_ON)
+    if (new_source == current_source && EtatAmp == AMP_ON)
     {
         LOG_INFO("source == %s, no other source available", sources[current_source].name);
         return;
     }
 
     /* Source is changing: mute everything (digital + analog), let it settle,
-     * then bring up only the new path below. */
-    ES9038Q2M_DAC_SetMute_Force(true);                       /* mute DAC path  */
-    PGA2311_Mute(true);                                      /* mute PGA (PGA_M) */
-    LL_GPIO_ResetOutputPin(RELAY_ON_GPIO_Port, RELAY_ON_Pin);/* open LINE relay */
-    LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port, MUX_SEL_Pin);  /* mux -> I2S3_SD (USB) path */
-    LL_GPIO_ResetOutputPin(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin);/* disable SPDIF input HW */
-    ES9038Q2M_DAC_SetInput(ES9038Q2M_INPUT_I2S);             /* default DAC input = I2S */
+     * then bring up only the new path below. DAC input is set per-case;
+     * SEL_SPDIF is owned by Spdif_Probe(). */
+    Source_Mute();
+    LL_GPIO_ResetOutputPin(RELAY_ON_GPIO_Port, RELAY_ON_Pin); /* open LINE relay  */
+    LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port, MUX_SEL_Pin);   /* mux -> I2S3_SD (USB) path */
     /* MUX_EN is active-low and left enabled (low) at all times */
     osDelay(50);
 
-    switch (new_source) // Unmute done only if EtatAmp is AMP_ON
+    switch (new_source) // Unmute is deferred until AMP_ON via Source_Unmute()
     {
         case SOURCE_USB:
-            /* mux already on I2S3_SD (USB) path, DAC on I2S */
-            ES9038Q2M_DAC_SetMute_Force(false);              /* un-mute DAC */
+            ES9038Q2M_DAC_SetInput(ES9038Q2M_INPUT_I2S);      /* USB via I2S */
             break;
 
         case SOURCE_SPDIF:
-            /* enable SPDIF input HW, switch DAC to its SPDIF input (DAC GPIO1) */
-            LL_GPIO_ResetOutputPin(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin);
+            /* SEL_SPDIF already on the working input (from Spdif_Probe) */
             ES9038Q2M_DAC_SetInput(ES9038Q2M_INPUT_SPDIF);
-            ES9038Q2M_DAC_SetMute_Force(false);              /* un-mute DAC */
             break;
 
         case SOURCE_BT:
-            /* BT path: switch analog/I2S mux from I2S3_SD to BT, DAC stays on I2S */
+            ES9038Q2M_DAC_SetInput(ES9038Q2M_INPUT_I2S);
             LL_GPIO_SetOutputPin(MUX_SEL_GPIO_Port, MUX_SEL_Pin);
-            ES9038Q2M_DAC_SetMute_Force(false);              /* un-mute DAC */
             break;
 
         case SOURCE_LINE:
-            /* analog LINE path: close input relay, settle, then unmute PGA.
-             * PGA2311 gain is already kept in sync by ES9038Q2M_ProcessEvents. */
+            /* analog LINE path: close input relay, settle. Unmute is deferred. */
             LL_GPIO_SetOutputPin(RELAY_ON_GPIO_Port, RELAY_ON_Pin);
             osDelay(50);
-            PGA2311_Mute(false);                             /* un-mute PGA (PGA_M) */
             break;
 
         default:
             LOG_ERR("invalid source");
             return;
     }
+
+    Source_Unmute(new_source);   /* no-op unless AMP_ON (e.g. source change while running) */
 
     current_source = new_source;
     LOG_INFO("source -> %s", sources[new_source].name);
@@ -1181,18 +1250,25 @@ void AmpOnOff_Thread(void const *argument)
     {
         osDelay(100);
 
-        /* Long press -> power OFF (from any state) */
-        if (long_press_pending)
+        /* From OFF: any press (short or long) powers ON */
+        if (EtatAmp == AMP_OFF)
         {
-            long_press_pending = false;
-            CommandeAmp = false;
+            if (short_press_pending || long_press_pending)
+            {
+                short_press_pending = false;
+                long_press_pending  = false;
+                CommandeAmp = true;
+            }
         }
-
-        /* Short press while OFF -> power ON */
-        if (short_press_pending && EtatAmp == AMP_OFF)
+        else
         {
-            short_press_pending = false;
-            CommandeAmp = true;
+            /* Running: long press powers OFF */
+            if (long_press_pending)
+            {
+                long_press_pending = false;
+                CommandeAmp = false;
+            }
+            /* short press while ON is handled by Source_Thread (source cycle) */
         }
 
         if (CommandeAmp && EtatAmp == AMP_OFF)
@@ -1200,34 +1276,51 @@ void AmpOnOff_Thread(void const *argument)
             LOG_WARN("amp power START sequence");
             EtatAmp = AMP_POWERING;
 
-            /* select default source (USB if connected, else next available) */
+            /* 1) Start the amp power-on immediately */
+            LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
+            LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
+            osDelay(100);
+            LL_GPIO_SetOutputPin(On_L_GPIO_Port, On_L_Pin);
+            LL_GPIO_SetOutputPin(On_R_GPIO_Port, On_R_Pin);
+            uint32_t power_on_tick = HAL_GetTick();
+            LOG_INFO("amp power START, wait for power to stabilize");
+
+            /* 2) Select source while the power rails stabilize (may take ~3s) */
             Source_Switch(current_source);
 
             __HAL_TIM_SET_COUNTER(&htim4, 0);
             last_encoder_counter = 0;
             HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);
 
-            LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
-            LL_GPIO_SetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
-            osDelay(100);
-            LL_GPIO_SetOutputPin(On_L_GPIO_Port, On_L_Pin);
-            LL_GPIO_SetOutputPin(On_R_GPIO_Port, On_R_Pin);
-            LOG_INFO("amp power START, wait for power to stabilize");
-            osDelay(5000);
+            /* 3) Wait for the remaining of the 5s stabilization timeout
+             *    (source switch delay is now part of this window) */
+            uint32_t elapsed = HAL_GetTick() - power_on_tick;
+            if (elapsed < 5000)
+            {
+                LOG_DBG("power stabilize: %lu ms elapsed, waiting %lu ms more",
+                        (unsigned long)elapsed, (unsigned long)(5000 - elapsed));
+                osDelay(5000 - elapsed);
+            }
+            else
+            {
+                LOG_DBG("power stabilize: source switch took %lu ms (>=5s), no extra wait",
+                        (unsigned long)elapsed);
+            }
+
             LL_GPIO_ResetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);
             osDelay(100);
             LL_GPIO_ResetOutputPin(Light_fire_R_GPIO_Port, Light_fire_R_Pin);
             
             EtatAmp = AMP_ON;
 
-            ES9038Q2M_DAC_SetMute_Force(false);
+            Source_Unmute(current_source);   /* unmute correct path (DAC or PGA) */
             LOG_INFO("amp power ON, unmuted, let's rock...");
         }
         if (!CommandeAmp && EtatAmp != AMP_OFF)
         {
             LOG_WARN("amp power OFF start sequence");
             EtatAmp = AMP_OFF;
-            ES9038Q2M_DAC_SetMute_Force(true);
+            Source_Mute();
             source_leds_off();
             HAL_TIM_Encoder_Stop(&htim4, TIM_CHANNEL_ALL);
             LL_GPIO_SetOutputPin(Light_fire_L_GPIO_Port, Light_fire_L_Pin);

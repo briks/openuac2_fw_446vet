@@ -134,6 +134,7 @@ extern volatile int16_t requested_volume_ch1;
 extern volatile int16_t requested_volume_ch2;
 extern volatile bool requested_mute;
 extern volatile bool es9038q2m_audio_stop_pending;
+extern volatile bool es9038q2m_spdif_present;   /* true when a real SPDIF stream is detected */
 extern const AUDIO_CodecTypeDef es9038q2m_instance;
 
 
@@ -148,6 +149,7 @@ uint8_t ES9038Q2M_DAC_Format_set(uint8_t format);
 uint8_t ES9038Q2M_DAC_Play(void);
 uint8_t ES9038Q2M_DAC_Stop(void);
 void    ES9038Q2M_LogSpdifChannelStatus(void);
+bool    ES9038Q2M_SpdifPresent(void);
 void    ES9038Q2M_ProcessEvents(void);
 uint8_t ES9038Q2M_DAC_SetInput(ES9038Q2M_Input_t input);
 

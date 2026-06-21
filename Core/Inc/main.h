@@ -94,6 +94,9 @@ void MX_I2C1_Init(I2C_HandleTypeDef *hi2c);
 void Leds_PWM_Init(void);                       /* call once after MX_GPIO_Init */
 void Led_G_SetBrightness(uint8_t percent);      /* 0..100 */
 void Led_R_SetBrightness(uint8_t percent);      /* 0..100 */
+
+/* SPDIF input selection (SEL_SPDIF): returns "optical" or "coax" */
+const char *Spdif_GetInputTypeStr(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
@@ -180,6 +183,10 @@ extern volatile bool       CommandeAmp;  /* on/off request */
 extern volatile AmpState_t EtatAmp;      /* current amp state */
 
 extern volatile AudioSource_t current_source;
+
+/* SEL_SPDIF (PC4) selects the physical SPDIF input: low = optical, high = coax */
+#define SPDIF_INPUT_OPTICAL  0u
+#define SPDIF_INPUT_COAX     1u
 
 /* USER CODE END Private defines */
 

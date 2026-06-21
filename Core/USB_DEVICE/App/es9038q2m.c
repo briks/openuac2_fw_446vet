@@ -20,6 +20,7 @@ volatile int16_t es9038q2m_configured_volume_ch2 = AUDIO_CUR_VOL + 1; /* differ 
 volatile bool requested_mute = true;                                  /* unmuted when amp powers on */
 volatile bool es9038q2m_configured_mute = true;                       /* will be forced at startup as amps are off */
 volatile bool es9038q2m_audio_stop_pending = false;
+volatile bool es9038q2m_spdif_present = false;   /* updated from REG70-93 channel status */
 
 AUDIO_FormatTypeDef requested_format  = AUDIO_FORMAT_PCM;
 AUDIO_FormatTypeDef configured_format = AUDIO_FORMAT_DSD;  /* differ → force apply on first call */
@@ -68,6 +69,10 @@ uint8_t ES9038Q2M_DAC_Init(void)
     registre = REG21_GPIO_SEL1_SPDIF;      /* GPIO2 left default (serial) */
     HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG21_ADDR,
                       I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
+
+    /* REG1: known input state at boot = I2S (auto-select DSD/serial, SPDIF
+     * excluded). SPDIF is exercised on demand only, via Spdif_Probe(). */
+    ES9038Q2M_DAC_SetInput(ES9038Q2M_INPUT_I2S);
 
     /* REG14 = 0x8A: normal operation (read-modify-write pattern kept for diagnostics) */
     registre = 0x8a;
@@ -631,6 +636,18 @@ void ES9038Q2M_LogSpdifChannelStatus(void)
         return;
     }
 
+    /* SPDIF presence: REG72/73/74 (channel-status payload) all zero means no
+     * real SPDIF stream is connected, even if the valid bit briefly flickers. */
+    bool present = !(buf[2] == 0 && buf[3] == 0 && buf[4] == 0);
+    if (present != es9038q2m_spdif_present)
+    {
+        LOG_INFO("SPDIF stream %s on %s input (REG72-74: %02X %02X %02X)",
+                    present ? "PRESENT" : "absent",
+                    Spdif_GetInputTypeStr(),
+                    buf[2], buf[3], buf[4]);
+    }
+    es9038q2m_spdif_present = present;
+
     /* Only print when something actually changed */
     if (memcmp(cached, buf, sizeof(buf)) == 0)
         return;
@@ -711,6 +728,12 @@ void ES9038Q2M_ProcessEvents(void)
             if (new_status_register & ES9038Q2M_STAT_SPDIF_VALID)
             {
                 ES9038Q2M_LogSpdifChannelStatus();
+            }
+            else if (es9038q2m_spdif_present)
+            {
+                LOG_INFO("SPDIF stream absent on %s input (valid bit cleared)",
+                         Spdif_GetInputTypeStr());
+                es9038q2m_spdif_present = false;
             }
         }
     }
@@ -803,4 +826,9 @@ uint8_t ES9038Q2M_DAC_SetInput(ES9038Q2M_Input_t input)
                                               : "I2S (auto DSD/serial)",
              reg1);
     return 0;
+}
+
+bool ES9038Q2M_SpdifPresent(void)
+{
+    return es9038q2m_spdif_present;
 }
