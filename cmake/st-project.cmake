@@ -91,6 +91,7 @@ target_sources(
     ${TARGET_NAME} PRIVATE
     "Core\\Src\\freertos.c"
     "Core\\Src\\main.c"
+    "Core\\Src\\bluetooth.c"
     "Core\\Src\\stm32f4xx_hal_msp.c"
     "Core\\Src\\stm32f4xx_hal_timebase_tim.c"
     "Core\\Src\\stm32f4xx_it.c"

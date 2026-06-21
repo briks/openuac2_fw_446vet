@@ -26,6 +26,7 @@
 #include "usbd_conf.h"
 #include "es9038q2m.h"
 #include "pga2311.h"
+#include "bluetooth.h"
 #include "SEGGER_RTT.h"
 #include "stm32f4xx_it.h"
 #define LOG_LEVEL LOG_LEVEL_DBG
@@ -1050,8 +1051,11 @@ static bool Source_IsAvailable(AudioSource_t src)
         /* "connected" = enumerated and configured by the host */
         return (hUsbDeviceHS.dev_state == USBD_STATE_CONFIGURED);
 
-    case SOURCE_SPDIF:
     case SOURCE_BT:
+        /* available only if a phone/device is actually connected */
+        return BT_IsConnected();
+
+    case SOURCE_SPDIF:
     case SOURCE_LINE:
     default:
         return true;   /* detection not implemented yet */
@@ -1142,11 +1146,15 @@ static void Source_Switch(AudioSource_t start_source)
  */
 void Source_Thread(void const *argument)
 {
+    /* power up the BT module and start UART reception (needs the scheduler) */
+    BT_Init();
+
     for (;;)
     {
         osDelay(50);
 
         PowerButton_Process();
+        BT_Process();                 /* drain UART, update BT connection state */
 
         if (EtatAmp != AMP_ON)
             continue;
