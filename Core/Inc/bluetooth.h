@@ -15,6 +15,9 @@
  *       before the scheduler is started.
  */
 
+
+#define BT_SPKVOL_MID  7
+
 void BT_Init(void);          /* power on + start UART reception */
 void BT_QueryInfo(void);     /* send AT+VER/NAME/LENAME (call after scheduler start) */
 void BT_PowerOn(void);
@@ -25,5 +28,8 @@ void BT_Process(void);        /* call periodically (drains UART, parses events) 
 void BT_SendCommand(const char *cmd); /* sends "<cmd>\r\n" (AT commands) */
 void BT_Pause(void);                  /* AVRCP: pause playback on the phone */
 void BT_Play(void);                   /* AVRCP: resume playback on the phone */
+void BT_VolumeInit(uint8_t target);   /* set phone volume to an absolute value */
+int8_t BT_VolumeChange(int8_t delta); /* apply rotary delta; returns leftover
+                                         UP steps for the DAC (0 on down)      */
 
 #endif /* _BLUETOOTH_H_ */

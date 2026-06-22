@@ -70,7 +70,7 @@ osThreadId defaultTaskHandle;
 uint32_t defaultTaskBuffer[defaultTaskBufferSize / sizeof(uint32_t)];
 osStaticThreadDef_t defaultTaskControlBlock;
 osThreadId VolumeHandle;
-#define VolumeBufferSize 512
+#define VolumeBufferSize 1024
 uint32_t VolumeBuffer[VolumeBufferSize / sizeof(uint32_t)];
 osStaticThreadDef_t VolumeControlBlock;
 osThreadId LedsHandle;
@@ -111,7 +111,7 @@ static void MX_TIM4_Init(void);
 static void MX_SPI4_Init(void);
 static void MX_USART2_UART_Init(void);
 void Events_Thread(void const *argument);
-void StartVolume(void const *argument);
+void Volume_Thread(void const *argument);
 void Leds_Thread(void const *argument);
 void Source_Thread(void const *argument);
 void AmpOnOff_Thread(void const *argument);
@@ -253,7 +253,7 @@ int main(void)
     defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
     /* definition and creation of Volume */
-    osThreadStaticDef(Volume, StartVolume, osPriorityNormal, 0, VolumeBufferSize / sizeof(uint32_t), VolumeBuffer, &VolumeControlBlock);
+    osThreadStaticDef(Volume, Volume_Thread, osPriorityNormal, 0, VolumeBufferSize / sizeof(uint32_t), VolumeBuffer, &VolumeControlBlock);
     VolumeHandle = osThreadCreate(osThread(Volume), NULL);
 
     /* definition and creation of Leds */
@@ -1012,7 +1012,7 @@ void Events_Thread(void const *argument)
  * @param argument: Not used
  * @retval None
  */
-void StartVolume(void const *argument)
+void Volume_Thread(void const *argument)
 {
     /* Infinite loop */
     for (;;)
@@ -1022,10 +1022,18 @@ void StartVolume(void const *argument)
             int8_t counter = __HAL_TIM_GET_COUNTER(&htim4);
             if (counter != last_encoder_counter)
             {
-                int8_t delta = (int8_t)(counter - last_encoder_counter); // handle overflow with signed int
+                int8_t delta = (int8_t)(counter - last_encoder_counter);
                 last_encoder_counter = counter;
                 LOG_DBG("encoder %d, delta %d", counter, delta);
-                ES9038Q2M_DAC_Volume_change(delta);
+
+                if (current_source == SOURCE_BT)
+                {
+                    /* Phone handles the volume; leftover UP steps (phone at 15)
+                     * extend the range upward via the DAC. Down is all phone. */
+                    delta = BT_VolumeChange(delta);
+                }
+
+                ES9038Q2M_DAC_Volume_change(delta);  /* USB/SPDIF/LINE */
             }
         }
         osDelay(100);
@@ -1119,7 +1127,10 @@ static void Source_Unmute(AudioSource_t src)
         ES9038Q2M_DAC_SetMute_Force(false);  /* un-mute DAC */
 
     if (src == SOURCE_BT)
-        BT_Play(); // Should hijack audio from phone
+    {
+        BT_VolumeInit(BT_SPKVOL_MID);   /* phone to mid (7), keep current DAC */
+        BT_Play();
+    }
 }
 
 // Could return immediately if the source is already active

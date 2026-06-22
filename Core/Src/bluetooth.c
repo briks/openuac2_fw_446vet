@@ -25,7 +25,15 @@ static volatile bool bt_powered   = false;
 static volatile bool bt_connected = false;  /* A2DP link up (state >= 3)     */
 static volatile bool bt_streaming = false;  /* actively streaming (state == 4) */
 
-#define BT_BOOT_READY_MS  1060U
+static osMutexId bt_uart_mutex = NULL;
+osMutexDef(bt_uart_mutex);
+
+#define BT_BOOT_READY_MS 1060U
+#define BT_TX_TIMEOUT_MS 10
+#define BT_SPKVOL_MAX  15
+
+static int8_t        bt_phone_vol    = -1;     /* tracked phone volume (-1 unknown) */
+static volatile bool bt_spkvol_valid = false;  /* set by parser on +SPKVOL= reply   */
 
 static uint32_t bt_poweron_tick;   /* HAL tick when SYS_CTRL went high (standby exit) */
 
@@ -167,6 +175,81 @@ void BT_Play(void)
     //bt_paused_by_us = false;
 }
 
+/* Set the phone's A2DP volume to an absolute value (AT+SPKVOL=N). */
+void BT_VolumeInit(uint8_t target)
+{
+    if (!bt_powered || !bt_connected)
+        return;
+    if (target > BT_SPKVOL_MAX)
+        target = BT_SPKVOL_MAX;
+
+    char cmd[16];
+    snprintf(cmd, sizeof(cmd), "AT+SPKVOL=%u", (unsigned)target);
+    BT_SendCommand(cmd);
+    bt_phone_vol = (int8_t)target;
+    LOG_INFO("BT phone volume set to %u", (unsigned)target);
+}
+
+/* Query the phone's current volume and wait briefly for the +SPKVOL= reply,
+ * which is parsed by BT_Process() in another thread. Keeps bt_phone_vol in
+ * sync when the user changed volume directly on the phone. */
+static void BT_VolumeResync(void)
+{
+    bt_spkvol_valid = false;
+    BT_SendCommand("AT+SPKVOL");          /* get -> +SPKVOL=N */
+
+    uint32_t start = HAL_GetTick();
+    while (!bt_spkvol_valid && (HAL_GetTick() - start) < (BT_TX_TIMEOUT_MS * 2))
+        osDelay(2);  /* yield so Events_Thread can parse */
+
+    if (!bt_spkvol_valid)
+        LOG_WARN("BT SPKVOL resync timeout, using cached %d", bt_phone_vol);
+}
+
+/* Apply a rotary delta to the phone volume.
+ *  - up   : phone absorbs up to (15 - current); leftover UP steps are returned
+ *           for the caller to apply to the DAC (raises the ceiling).
+ *  - down : phone takes all steps (to 0); the DAC is never lowered -> returns 0.
+ * Resyncs from the phone first, but only on a fresh interaction (idle gap), so
+ * a continuous spin isn't slowed by a query on every step. */
+int8_t BT_VolumeChange(int8_t delta)
+{
+    static uint32_t last_tick = 0;
+
+    if (!bt_powered || !bt_connected)
+        return (delta > 0) ? delta : 0;   /* phone gone: all up-steps -> DAC */
+
+    uint32_t now = HAL_GetTick();
+    if ((now - last_tick) > 1000)         /* new interaction -> trust the phone */
+        BT_VolumeResync();
+    last_tick = now;
+
+    if (bt_phone_vol < 0) bt_phone_vol = BT_SPKVOL_MID;
+
+    if (delta > 0)
+    {
+        int room = BT_SPKVOL_MAX - bt_phone_vol;
+        if (room < 0) room = 0;
+        int take = (delta < room) ? delta : room;
+        for (int i = 0; i < take; i++)
+            BT_SendCommand("AT+SPKVOL=+");
+        bt_phone_vol += take;
+        LOG_DBG("BT vol up: phone=%d, %d step(s) left for DAC", bt_phone_vol, delta - take);
+        return (int8_t)(delta - take);    /* leftover -> DAC up */
+    }
+    else if (delta < 0)
+    {
+        int down = -delta;
+        int take = (down < bt_phone_vol) ? down : bt_phone_vol;
+        for (int i = 0; i < take; i++)
+            BT_SendCommand("AT+SPKVOL=-");
+        bt_phone_vol -= take;
+        LOG_DBG("BT vol down: phone=%d", bt_phone_vol);
+        return 0;                         /* DAC never lowered */
+    }
+    return 0;
+}
+
 bool BT_IsPoweredOn(void) { return bt_powered; }
 bool BT_IsConnected(void) { return bt_connected; }
 
@@ -204,6 +287,9 @@ void BT_Init(void)
     LOG_INFO("BT_Init...");
     bt_rx_head = bt_rx_tail = 0;
     bt_line_len = 0;
+
+    if (bt_uart_mutex == NULL)
+        bt_uart_mutex = osMutexCreate(osMutex(bt_uart_mutex));
 
     BT_PowerOn();
 
@@ -265,20 +351,29 @@ void BT_SendCommand(const char *cmd)
         return;
     }
 
+    if (bt_uart_mutex)
+        osMutexWait(bt_uart_mutex, osWaitForever);
+
     HAL_StatusTypeDef st;
-    st = HAL_UART_Transmit(&huart2, (uint8_t *)cmd, (uint16_t)strlen(cmd), 10);
+    st = HAL_UART_Transmit(&huart2, (uint8_t *)cmd, (uint16_t)strlen(cmd), BT_TX_TIMEOUT_MS);
     if (st != HAL_OK)
     {
-        LOG_WARN("BT TX failed (%d) for '%s'", (int)st, cmd);
-        return;
+        if (st == HAL_TIMEOUT)
+            LOG_WARN("BT TX timeout for '%s'", cmd);
+        else
+            LOG_ERR("BT TX failed (%d) for '%s'", (int)st, cmd);
     }
-    st = HAL_UART_Transmit(&huart2, (uint8_t *)"\r\n", 2, 10);
-    if (st != HAL_OK)
+    else
     {
-        LOG_ERR("BT TX (CRLF) failed (%d)", (int)st);
-        return;
+        st = HAL_UART_Transmit(&huart2, (uint8_t *)"\r\n", 2, BT_TX_TIMEOUT_MS);
+        if (st != HAL_OK)
+            LOG_WARN("BT TX (CRLF) err (%d)", (int)st);
+        else
+            LOG_DBG("BT >> %s", cmd);
     }
-    LOG_DBG("BT >> %s", cmd);
+
+    if (bt_uart_mutex)
+        osMutexRelease(bt_uart_mutex);
 }
 
 /* +PLAYSTAT / +TRACKSTAT Param1: media player state */
@@ -379,6 +474,17 @@ static void BT_ParseLine(const char *line)
             /* uncomment if your firmware needs a reboot to apply:
             BT_SendCommand("AT+REBOOT"); */
         }
+        return;
+    }
+
+    if (strncmp(line, "+SPKVOL=", 8) == 0)
+    {
+        int volume = atoi(line + 8);
+        if (volume < 0) volume = 0;
+        if (volume > BT_SPKVOL_MAX) volume = BT_SPKVOL_MAX;
+        bt_phone_vol    = (int8_t)volume;
+        bt_spkvol_valid = true;
+        LOG_DBG("BT phone vol = %d", bt_phone_vol);
         return;
     }
 
