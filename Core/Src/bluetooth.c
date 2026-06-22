@@ -22,7 +22,8 @@ static uint16_t bt_line_len;
 
 /* ---- state --------------------------------------------------------------- */
 static volatile bool bt_powered   = false;
-static volatile bool bt_connected = false;
+static volatile bool bt_connected = false;  /* A2DP link up (state >= 3)     */
+static volatile bool bt_streaming = false;  /* actively streaming (state == 4) */
 
 #define BT_BOOT_READY_MS  1060U
 
@@ -84,8 +85,87 @@ static uint32_t bt_poweron_tick;   /* HAL tick when SYS_CTRL went high (standby 
                             | BT_I2SCFG_DELAY_1BIT  \
                             | BT_I2SCFG_DEPTH_32BIT )
 
+/* ---- AT+A2DPCFG codec enable bit field (base-10 value, per AT spec) -------
+ *   BIT[0] AAC      BIT[1] APTX     BIT[2] APTX-LL
+ *   BIT[3] APTX-HD  BIT[4] APTX-AD  BIT[5] LDAC                              */
+#define BT_A2DPCFG_AAC          (1U << 0)
+#define BT_A2DPCFG_APTX         (1U << 1)
+#define BT_A2DPCFG_APTX_LL      (1U << 2)
+#define BT_A2DPCFG_APTX_HD      (1U << 3)
+#define BT_A2DPCFG_APTX_AD      (1U << 4)
+#define BT_A2DPCFG_LDAC         (1U << 5)
+
+/* Desired A2DP codec set. LDAC is intentionally left OFF: it can negotiate
+ * 88.2/96 kHz, but the module's I2S port is capped at 48 kHz (AT+I2SCFG), so
+ * the module would downsample 96->48 with its mediocre internal SRC -> audible
+ * treble crackle. aptX HD (48 kHz / 24-bit native) plays cleanly through the
+ * 48 kHz / 32-bit I2S port with no internal resampling.
+ *   = AAC | APTX | APTX-LL | APTX-HD | APTX-AD  (LDAC off) = 0x1F = 31 */
+// Default value read=47: AAC=1 APTX=1 APTX-LL=1 APTX-HD=1 APTX-AD=0 LDAC=1
+#define BT_A2DPCFG_DESIRED      ( BT_A2DPCFG_AAC      \
+                                | BT_A2DPCFG_APTX     \
+                                | BT_A2DPCFG_APTX_LL  \
+                                | BT_A2DPCFG_APTX_HD    )
+
+/* Desired auto get track info + auto get track play progress (in s, 0 to disable)*/
+#define BT_AVRCPCFG_DESIRED (1 + (0 << 1))  /* get track ID3 + get track progress freq=0s (off) */
+
+/* ---- AT+A2DPDEC / AT+A2DPENC codec id values (per AT spec) ---------------- */
+#define BT_A2DP_CODEC_SBC       1
+#define BT_A2DP_CODEC_AAC       3
+#define BT_A2DP_CODEC_APTX      5
+#define BT_A2DP_CODEC_APTX_HD   7
+#define BT_A2DP_CODEC_APTX_LL   8
+#define BT_A2DP_CODEC_APTX_AD   9
+#define BT_A2DP_CODEC_LDAC      10
+
+/* +A2DPDEC / +A2DPENC Param: active A2DP codec id */
+static const char *BT_A2dpCodecStr(int c)
+{
+    switch (c)
+    {
+        case BT_A2DP_CODEC_SBC:     return "SBC";
+        case BT_A2DP_CODEC_AAC:     return "AAC";
+        case BT_A2DP_CODEC_APTX:    return "aptX";
+        case BT_A2DP_CODEC_APTX_HD: return "aptX HD";
+        case BT_A2DP_CODEC_APTX_LL: return "aptX LL";
+        case BT_A2DP_CODEC_APTX_AD: return "aptX Adaptive";
+        case BT_A2DP_CODEC_LDAC:    return "LDAC";
+        default:                    return "unknown";
+    }
+}
 
 /* -------------------------------------------------------------------------- */
+
+
+static bool bt_paused_by_us = false;   /* we issued AT+PAUSE, eligible to resume */
+
+/* Send an AVRCP "pause" to the connected phone (e.g. when the amp powers off,
+ * so the phone stops playing into a dead output). No-op if not connected. */
+void BT_Pause(void)
+{
+    if (!bt_powered || !bt_connected)
+        return;
+    LOG_INFO("BT pause");
+    BT_SendCommand("AT+PAUSE");
+    //bt_paused_by_us = true;
+}
+
+/* Send an AVRCP "play" to the connected phone (e.g. resume on amp power-on
+ * when BT is the active source). No-op if not connected. */
+void BT_Play(void)
+{
+    if (!bt_powered || !bt_connected)
+        return;
+    // if (!bt_paused_by_us)
+    // {
+    //     LOG_DBG("BT_Play skipped: not paused by us (avoid hijack)");
+    //     return;
+    // }
+    LOG_INFO("BT play"); 
+    BT_SendCommand("AT+PLAY"); // Should hijack audio from phone
+    //bt_paused_by_us = false;
+}
 
 bool BT_IsPoweredOn(void) { return bt_powered; }
 bool BT_IsConnected(void) { return bt_connected; }
@@ -161,7 +241,7 @@ void BT_QueryInfo(void)
 
     bt_powered = true;   /* module ready: BT_Process() starts draining RX */
     osDelay(20); // get DEVSTAT
-    LOG_INFO("BT query info (VER / NAME / LENAME / I2SCFG / SPDIFCFG)");
+    LOG_INFO("BT query info (VER / NAME / LENAME / I2SCFG / A2DPCFG / A2DPDEC)");
     BT_SendCommand("AT+VER");
     osDelay(20);
     BT_SendCommand("AT+NAME"); /* -> +NAME=...  : checked/updated in parser */
@@ -170,8 +250,11 @@ void BT_QueryInfo(void)
     osDelay(20);
     BT_SendCommand("AT+I2SCFG");
     osDelay(20);
-    // BT_SendCommand("AT+SPDIFCFG");
-    // osDelay(20);
+    BT_SendCommand("AT+A2DPCFG");   /* -> +A2DPCFG=...: enabled codec set */
+    osDelay(20);
+    BT_SendCommand("AT+A2DPDEC");   /* -> +A2DPDEC=...: active decoder      */
+    osDelay(20);
+    BT_SendCommand("AT+AVRCPCFG"); /* -> Get/Set AVRCP Configuration     */
 }
 
 void BT_SendCommand(const char *cmd)
@@ -183,13 +266,13 @@ void BT_SendCommand(const char *cmd)
     }
 
     HAL_StatusTypeDef st;
-    st = HAL_UART_Transmit(&huart2, (uint8_t *)cmd, (uint16_t)strlen(cmd), 100);
+    st = HAL_UART_Transmit(&huart2, (uint8_t *)cmd, (uint16_t)strlen(cmd), 10);
     if (st != HAL_OK)
     {
-        LOG_ERR("BT TX failed (%d) for '%s'", (int)st, cmd);
+        LOG_WARN("BT TX failed (%d) for '%s'", (int)st, cmd);
         return;
     }
-    st = HAL_UART_Transmit(&huart2, (uint8_t *)"\r\n", 2, 100);
+    st = HAL_UART_Transmit(&huart2, (uint8_t *)"\r\n", 2, 10);
     if (st != HAL_OK)
     {
         LOG_ERR("BT TX (CRLF) failed (%d)", (int)st);
@@ -345,21 +428,89 @@ static void BT_ParseLine(const char *line)
         return;
     }
 
-    
+    if (strncmp(line, "+A2DPCFG=", 9) == 0)
+    {
+        int cfg = atoi(line + 9);
+        LOG_INFO("BT A2DPCFG=%d: AAC=%d APTX=%d APTX-LL=%d APTX-HD=%d APTX-AD=%d LDAC=%d",
+                 cfg,
+                 (cfg & BT_A2DPCFG_AAC) ? 1 : 0,
+                 (cfg & BT_A2DPCFG_APTX) ? 1 : 0,
+                 (cfg & BT_A2DPCFG_APTX_LL) ? 1 : 0,
+                 (cfg & BT_A2DPCFG_APTX_HD) ? 1 : 0,
+                 (cfg & BT_A2DPCFG_APTX_AD) ? 1 : 0,
+                 (cfg & BT_A2DPCFG_LDAC) ? 1 : 0);
+
+        /* To enforce a desired codec set (e.g. disable LDAC to avoid the
+         * 96kHz->48kHz internal-SRC crackle), uncomment below. A2DPCFG is
+         * persistent and usually needs a reboot to take effect. */
+        if (cfg != BT_A2DPCFG_DESIRED)
+        {
+            char cmd[24];
+            LOG_WARN("BT A2DPCFG differs from desired %d, updating", BT_A2DPCFG_DESIRED);
+            snprintf(cmd, sizeof(cmd), "AT+A2DPCFG=%d", BT_A2DPCFG_DESIRED);
+            BT_SendCommand(cmd);
+        }
+        return;
+    }
+
+    if (strncmp(line, "+A2DPDEC=", 9) == 0)
+    {
+        int codec = atoi(line + 9);
+        LOG_INFO("BT A2DP decoder: %s (%d)", BT_A2dpCodecStr(codec), codec);
+        return;
+    }
+
+    if (strncmp(line, "+AVRCPCFG=", 10) == 0)
+    {
+        int cfg = atoi(line + 10);
+        LOG_INFO("BT AVRCPCFG=%s: get track ID3=%s track progress freq=%d",
+                 cfg,
+                 (cfg & 1) ? "auto" : "off",
+                 (cfg >> 1) & 0x3);
+
+        /* Keep ID3 for each track, but disable play progress */
+        if (cfg != BT_AVRCPCFG_DESIRED)
+        {
+            char cmd[24];
+            LOG_WARN("BT AVRCPCFG differs from desired %d, updating", BT_AVRCPCFG_DESIRED);
+            snprintf(cmd, sizeof(cmd), "AT+AVRCPCFG=%d", BT_AVRCPCFG_DESIRED);
+            BT_SendCommand(cmd);
+        }
+        return;
+    }
+
     /* ---- A2DP link state (authoritative connection indicator) ---------- */
     if (strncmp(line, "+A2DPSTAT=", 10) == 0)
     {
         int state = atoi(line + 10);
-        bool connected = (state >= 3);    /* Connected(3) or Streaming(4) */
+        bool connected = (state >= 3); /* Connected(3) or Streaming(4) */
+        bool streaming = (state == 4); /* actually sending audio to us */
 
-        if (connected != bt_connected)
+        if (streaming != bt_streaming)
+        {
+            LOG_INFO("BT %s", streaming ? "streaming" : "idle (connected)");
+            if (streaming)
+            {
+                BT_SendCommand("AT+A2DPDEC");
+            }
+        }
+        else if (connected != bt_connected)
+        {
             LOG_INFO("BT %s (A2DP %s)",
-                        connected ? "connected" : "disconnected",
-                        BT_A2dpStateStr(state));
+                     connected ? "connected" : "disconnected",
+                     BT_A2dpStateStr(state));
+            if (connected)
+            {
+                BT_SendCommand("AT+A2DPDEC");
+            }
+        }
         else
+        {
             LOG_DBG("BT A2DP state: %s (%d)", BT_A2dpStateStr(state), state);
+        }
 
         bt_connected = connected;
+        bt_streaming = streaming;
         return;
     }
 

@@ -23,5 +23,7 @@ bool BT_IsPoweredOn(void);
 bool BT_IsConnected(void);    /* used by the source-selection logic */
 void BT_Process(void);        /* call periodically (drains UART, parses events) */
 void BT_SendCommand(const char *cmd); /* sends "<cmd>\r\n" (AT commands) */
+void BT_Pause(void);                  /* AVRCP: pause playback on the phone */
+void BT_Play(void);                   /* AVRCP: resume playback on the phone */
 
 #endif /* _BLUETOOTH_H_ */

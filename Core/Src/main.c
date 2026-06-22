@@ -1093,6 +1093,9 @@ static void Source_Mute(void)
 {
     ES9038Q2M_DAC_SetMute_Force(true);   /* mute DAC path    */
     PGA2311_Mute(true);                  /* mute PGA (PGA_M) */
+    
+    if (current_source == SOURCE_BT)
+        BT_Pause();                      /* pause phone (no-op if not connected) */
 }
 
 /* Unmute the audio path for the given source, but only once the amp is fully
@@ -1112,6 +1115,9 @@ static void Source_Unmute(AudioSource_t src)
         PGA2311_Mute(false);                 /* un-mute PGA (PGA_M) */
     else
         ES9038Q2M_DAC_SetMute_Force(false);  /* un-mute DAC */
+
+    if (src == SOURCE_BT)
+        BT_Play(); // Should hijack audio from phone
 }
 
 // Could return immediately if the source is already active
@@ -1162,18 +1168,17 @@ static void Source_Switch(AudioSource_t start_source)
 {
     source_leds_off();
 
+    Source_Mute();
+
     AudioSource_t new_source = Source_Search(start_source);
 
     if (new_source == current_source && EtatAmp == AMP_ON)
     {
         LOG_INFO("source == %s, no other source available", sources[current_source].name);
+        Source_Unmute(current_source); 
         return;
     }
 
-    /* Source is changing: mute everything (digital + analog), let it settle,
-     * then bring up only the new path below. DAC input is set per-case;
-     * SEL_SPDIF is owned by Spdif_Probe(). */
-    Source_Mute();
     LL_GPIO_ResetOutputPin(RELAY_ON_GPIO_Port, RELAY_ON_Pin); /* open LINE relay  */
     LL_GPIO_ResetOutputPin(MUX_SEL_GPIO_Port, MUX_SEL_Pin);   /* mux -> I2S3_SD (USB) path */
     /* MUX_EN is active-low and left enabled (low) at all times */
@@ -1206,8 +1211,8 @@ static void Source_Switch(AudioSource_t start_source)
             return;
     }
 
-    Source_Unmute(new_source);   /* no-op unless AMP_ON (e.g. source change while running) */
-
+    Source_Unmute(new_source);   /* no-op unless AMP_ON */
+  
     current_source = new_source;
     LOG_INFO("source -> %s", sources[new_source].name);
     LL_GPIO_SetOutputPin(sources[new_source].GPIOx, sources[new_source].PinMask);
