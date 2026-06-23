@@ -15,8 +15,8 @@
  *       before the scheduler is started.
  */
 
-
-#define BT_SPKVOL_MID  7
+// Volume set on the phone on BT unmute
+#define BT_SPKVOL_START  10 // on 15, see BT_SPKVOL_MAX
 
 void BT_Init(void);          /* power on + start UART reception */
 void BT_QueryInfo(void);     /* send AT+VER/NAME/LENAME (call after scheduler start) */

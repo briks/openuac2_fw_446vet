@@ -208,9 +208,9 @@ int main(void)
     LOG_INFO("__________        .__ __    ____  ___                    ._.");
     LOG_INFO("\\______   \\_______|__|  | __\\   \\/  /____    _____ ______| |");
     LOG_INFO(" |    |  _/\\_  __ \\  |  |/ / \\     /\\__  \\  /     \\\\____ \\ |");
-    LOG_INFO(" |    |   \\ |  | \\/  |    <  /     \\ / __ \\|  Y Y  \\  |_> >|");
-    LOG_INFO(" |______  / |__|  |__|__|__|_ \\/___/\\  (____  /__|_|  /   __/__");
-    LOG_INFO("        \\/                \\/      \\_/    \\/      \\/|__|   \\/");
+    LOG_INFO(" |    |   \\ |  | \\/  |    <  /     \\  / _ \\|  Y Y  \\  |_> >|");
+    LOG_INFO(" |______  / |__|  |__|__|__|/__/__  \\(____/\\__|_|  /   __/__");
+    LOG_INFO("        \\/                        \\_/            \\/|__|   \\/");
     LOG_INFO("");
     LOG_INFO("");
 
@@ -1128,7 +1128,7 @@ static void Source_Unmute(AudioSource_t src)
 
     if (src == SOURCE_BT)
     {
-        BT_VolumeInit(BT_SPKVOL_MID);   /* phone to mid (7), keep current DAC */
+        BT_VolumeInit(BT_SPKVOL_START);   /* phone to mid (7), keep current DAC */
         BT_Play();
     }
 }

@@ -164,7 +164,7 @@ void ES9038Q2M_DAC_Volume_change(int8_t delta)
 
 uint8_t ES9038Q2M_DAC_Volume_set(int16_t vol, uint8_t channel) /* Q8.8 dB from USB Audio class */
 {
-    LOG_DBG("requested volume %d change: %d", channel, vol);
+    //LOG_DBG("requested volume %d change: %d", channel, vol);
     if (vol < AUDIO_MIN_VOL)
         vol = AUDIO_MIN_VOL;
     if (vol > AUDIO_MAX_VOL)
@@ -714,26 +714,27 @@ void ES9038Q2M_ProcessEvents(void)
         }
         else
         {
+            new_status_register &= ES9038Q2M_STAT_DOP_VALID | ES9038Q2M_STAT_SPDIF_VALID | ES9038Q2M_STAT_I2S_VALID | ES9038Q2M_STAT_DSD_VALID;
             Error_cancel_nonBlocking(ERROR_I2C);
             // Display info on changes :
             if (new_status_register != status_register)
             {
                 LOG_DBG("Status change: 0x%02X -> 0x%02X", status_register, new_status_register);
-                if ((new_status_register & ES9038Q2M_STAT_DOP_VALID) != (status_register & ES9038Q2M_STAT_DOP_VALID))
+                if (new_status_register & ES9038Q2M_STAT_DOP_VALID)
                 {
-                    LOG_WARN("  DOP decoder %s", (new_status_register & ES9038Q2M_STAT_DOP_VALID) ? "VALID" : "INVALID");
+                    LOG_WARN("  DOP decoder %s", "VALID");
                 }
-                if ((new_status_register & ES9038Q2M_STAT_SPDIF_VALID) != (status_register & ES9038Q2M_STAT_SPDIF_VALID))
+                if (new_status_register & ES9038Q2M_STAT_SPDIF_VALID)
                 {
-                    LOG_WARN("  SPDIF decoder %s", (new_status_register & ES9038Q2M_STAT_SPDIF_VALID) ? "VALID" : "INVALID");
+                    LOG_WARN("  SPDIF decoder %s", "VALID");
                 }
-                if ((new_status_register & ES9038Q2M_STAT_I2S_VALID) != (status_register & ES9038Q2M_STAT_I2S_VALID))
+                if (new_status_register & ES9038Q2M_STAT_I2S_VALID)
                 {
-                    LOG_WARN("  I2S decoder %s", (new_status_register & ES9038Q2M_STAT_I2S_VALID) ? "VALID" : "INVALID");
+                    LOG_WARN("  I2S decoder %s", "VALID");
                 }
-                if ((new_status_register & ES9038Q2M_STAT_DSD_VALID) != (status_register & ES9038Q2M_STAT_DSD_VALID))
+                if (new_status_register & ES9038Q2M_STAT_DSD_VALID)
                 {
-                    LOG_WARN("  DSD decoder %s, or fallback", (new_status_register & ES9038Q2M_STAT_DSD_VALID) ? "VALID" : "INVALID");
+                    LOG_WARN("  DSD decoder %s, or fallback", "VALID");
                 }
                 status_register = new_status_register;
             }

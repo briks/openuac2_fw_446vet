@@ -245,6 +245,7 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
     haudio->alt_setting = 0;
     haudio->stream_type = AUDIO_FORMAT_PCM;
     haudio->sam_freq = 48000U; /* default until host sets rate */
+    LOG_WARN("Default set sam_freq=%lu Hz", (unsigned long)haudio->sam_freq);
     AudioBuffer_Init(&haudio->aud_buf, 0);
 
     /* Initialize the Audio output Hardware layer */
@@ -520,7 +521,8 @@ static uint8_t USBD_AUDIO_EP0_RxReady(USBD_HandleTypeDef *pdev)
     switch (haudio->control.unit)
     {
     case CLOCK_SOURCE_ID:
-        if (haudio->control.cmd == CS_SAM_FREQ_CONTROL) {
+        if (haudio->control.cmd == CS_SAM_FREQ_CONTROL)
+        {
             uint32_t prev = haudio->sam_freq;
             haudio->sam_freq = *(uint32_t*)haudio->control.data;
             LOG_WARN("host set sam_freq=%lu Hz", (unsigned long)haudio->sam_freq);
@@ -544,7 +546,9 @@ static uint8_t USBD_AUDIO_EP0_RxReady(USBD_HandleTypeDef *pdev)
 
             haudio->feedback_value = haudio->feedback_base;
             itf->AUDIO_Cmd(haudio->control.data, haudio->control.len, AUDIO_CMD_FREQ);
-        } else {
+        }
+        else
+        {
             LOG_ERR("EP0_RxReady: unknown clock cmd 0x%02X", haudio->control.cmd);
             return USBD_FAIL;
         }
@@ -869,7 +873,7 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
         {
             // Use resquested values to match interrupt sent on change.
             // Send new mute even if not applied yet
-            LOG_INFO("GetCurrent: mute state requested by host, channel=%u, returning %s, size=%u",
+            LOG_DBG("GetCurrent: mute state req, channel=%u, returning %s, size=%u",
                      LOBYTE(req->wValue), requested_mute ? "ON" : "OFF", req->wLength);
             SET_DATA(pbuf, uint8_t, requested_mute ? 1 : 0); // indicate to windows the mute state to display at startup, should reflect the internal state.
             get_current_mute_received = true;
@@ -885,7 +889,7 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
     case CLOCK_SOURCE_ID:
         if (HIBYTE(req->wValue) == CS_SAM_FREQ_CONTROL)
         {
-            LOG_INFO("GetCurrent: sample frequency requested by host, value=%lu Hz", (unsigned long)haudio->sam_freq);
+            LOG_DBG("GetCurrent: sample frequency requested by host, value=%lu Hz", (unsigned long)haudio->sam_freq);
             SET_DATA(pbuf, uint32_t, haudio->sam_freq);
         }
         else

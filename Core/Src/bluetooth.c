@@ -30,6 +30,7 @@ osMutexDef(bt_uart_mutex);
 
 #define BT_BOOT_READY_MS 1060U
 #define BT_TX_TIMEOUT_MS 10
+// Max BT volume on the phone, DAC volume is increased above
 #define BT_SPKVOL_MAX  15
 
 static int8_t        bt_phone_vol    = -1;     /* tracked phone volume (-1 unknown) */
@@ -224,7 +225,7 @@ int8_t BT_VolumeChange(int8_t delta)
         BT_VolumeResync();
     last_tick = now;
 
-    if (bt_phone_vol < 0) bt_phone_vol = BT_SPKVOL_MID;
+    if (bt_phone_vol < 0) bt_phone_vol = BT_SPKVOL_START;
 
     if (delta > 0)
     {
@@ -234,7 +235,7 @@ int8_t BT_VolumeChange(int8_t delta)
         for (int i = 0; i < take; i++)
             BT_SendCommand("AT+SPKVOL=+");
         bt_phone_vol += take;
-        LOG_DBG("BT vol up: phone=%d, %d step(s) left for DAC", bt_phone_vol, delta - take);
+        LOG_INFO("BT vol up: phone=%d, %d step(s) left for DAC", bt_phone_vol, delta - take);
         return (int8_t)(delta - take);    /* leftover -> DAC up */
     }
     else if (delta < 0)
@@ -244,7 +245,7 @@ int8_t BT_VolumeChange(int8_t delta)
         for (int i = 0; i < take; i++)
             BT_SendCommand("AT+SPKVOL=-");
         bt_phone_vol -= take;
-        LOG_DBG("BT vol down: phone=%d", bt_phone_vol);
+        LOG_INFO("BT vol down: phone=%d", bt_phone_vol);
         return 0;                         /* DAC never lowered */
     }
     return 0;
@@ -442,7 +443,7 @@ static void BT_ParseLine(const char *line)
     if (line[0] == '\0')
         return;
 
-    LOG_DBG("BT << %s", BT_Sanitize(line));
+    //LOG_DBG("BT << %s", BT_Sanitize(line));
 
     /* ---- AT query replies ---------------------------------------------- */
     if (strncmp(line, "+VER=", 5) == 0)
@@ -665,7 +666,7 @@ static void BT_ParseLine(const char *line)
     }
 
     /* ---- unsolicited connection events --------------------------------- */
-    LOG_DBG("BT unhandled line: %s", line);
+    LOG_DBG("BT unhandled line: %s", BT_Sanitize(line));
 
 }
 
