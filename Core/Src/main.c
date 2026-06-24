@@ -1066,29 +1066,48 @@ const char *Spdif_GetInputTypeStr(void)
 
 /* --- SPDIF active probe -----------------------------------------------------
  * Switch the DAC to its SPDIF input and look for a real stream: 500 ms on
- * optical, then 500 ms on coax. Returns true as soon as a stream is detected,
- * leaving SEL_SPDIF on the input where it was found. */
-static bool Spdif_Probe(void)
+ * each physical input. Probing starts with the input that last carried a
+ * stream (optical at boot), so a known-good source is rechecked first.
+ * Returns true as soon as a stream is detected, leaving SEL_SPDIF on the
+ * input where it was found. */
+static bool Spdif_ProbeInput(uint8_t input)
 {
-    ES9038Q2M_DAC_SetInput(ES9038Q2M_INPUT_SPDIF);
+    if (input == SPDIF_INPUT_COAX)
+        LL_GPIO_SetOutputPin(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin);
+    else
+        LL_GPIO_ResetOutputPin(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin);
 
-    /* optical first (SEL_SPDIF low) */
-    LL_GPIO_ResetOutputPin(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin);
-    LOG_DBG("SPDIF probe: optical (500ms)");
+    LOG_DBG("SPDIF probe: %s (500ms)",
+            (input == SPDIF_INPUT_COAX) ? "coax" : "optical");
     osDelay(500);
+
     if (ES9038Q2M_SpdifPresent())
     {
-        LOG_INFO("SPDIF stream found on optical");
+        LOG_INFO("SPDIF stream found on %s",
+                 (input == SPDIF_INPUT_COAX) ? "coax" : "optical");
         return true;
     }
+    return false;
+}
 
-    /* then coax (SEL_SPDIF high) */
-    LL_GPIO_SetOutputPin(SEL_SPDIF_GPIO_Port, SEL_SPDIF_Pin);
-    LOG_DBG("SPDIF probe: coax (500ms)");
-    osDelay(500);
-    if (ES9038Q2M_SpdifPresent())
+static bool Spdif_Probe(void)
+{
+    /* Remember which physical input last carried a stream so we recheck the
+     * known-good one first. Defaults to optical at boot. */
+    static uint8_t last_good_input = SPDIF_INPUT_OPTICAL;
+
+    ES9038Q2M_DAC_SetInput(ES9038Q2M_INPUT_SPDIF);
+
+    uint8_t other_input = (last_good_input == SPDIF_INPUT_COAX)
+                              ? SPDIF_INPUT_OPTICAL
+                              : SPDIF_INPUT_COAX;
+
+    if (Spdif_ProbeInput(last_good_input))
+        return true;
+
+    if (Spdif_ProbeInput(other_input))
     {
-        LOG_INFO("SPDIF stream found on coax");
+        last_good_input = other_input;
         return true;
     }
 
