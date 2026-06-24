@@ -1,0 +1,444 @@
+/**
+ ******************************************************************************
+ * @file           : mx_init.c
+ * @brief          : CubeMX-generated clock and peripheral init, extracted
+ *                   from main.c. Peripheral handles live here too.
+ ******************************************************************************
+ */
+
+#include "mx_init.h"
+
+/* Peripheral handles --------------------------------------------------------*/
+I2C_HandleTypeDef DAC_I2C_Handle; /* hi2c1 */
+I2S_HandleTypeDef hi2s1;
+I2S_HandleTypeDef hi2s3;
+DMA_HandleTypeDef hdma_spi1_tx;
+DMA_HandleTypeDef hdma_spi3_tx;
+SPI_HandleTypeDef hspi4;
+TIM_HandleTypeDef htim4;
+UART_HandleTypeDef huart2;
+PCD_HandleTypeDef hpcd_USB_OTG_HS;
+DMA_HandleTypeDef hdma_memtomem_dma2_stream0;
+DMA_HandleTypeDef hdma_memtomem_dma2_stream1;
+
+/* System Clock Configuration */
+void SystemClock_Config(void)
+{
+    LL_FLASH_SetLatency(LL_FLASH_LATENCY_5);
+    while (LL_FLASH_GetLatency() != LL_FLASH_LATENCY_5)
+    {
+    }
+    LL_PWR_SetRegulVoltageScaling(LL_PWR_REGU_VOLTAGE_SCALE1);
+    LL_PWR_EnableOverDriveMode();
+    LL_RCC_HSE_Enable();
+
+    /* Wait till HSE is ready */
+    while (LL_RCC_HSE_IsReady() != 1)
+    {
+    }
+    LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLM_DIV_16, 250, LL_RCC_PLLR_DIV_2);
+    /* PLLP is not exposed by ConfigDomain_SYS above; set it directly */
+    MODIFY_REG(RCC->PLLCFGR, RCC_PLLCFGR_PLLP, LL_RCC_PLLP_DIV_4);
+    LL_RCC_PLL_Enable();
+
+    /* Wait till PLL is ready */
+    while (LL_RCC_PLL_IsReady() != 1)
+    {
+    }
+    while (LL_PWR_IsActiveFlag_VOS() == 0)
+    {
+    }
+    LL_RCC_SetAHBPrescaler(LL_RCC_SYSCLK_DIV_1);
+    LL_RCC_SetAPB1Prescaler(LL_RCC_APB1_DIV_4);
+    LL_RCC_SetAPB2Prescaler(LL_RCC_APB2_DIV_2);
+    LL_RCC_SetSysClkSource(LL_RCC_SYS_CLKSOURCE_PLLR);
+
+    /* Wait till System clock is ready */
+    while (LL_RCC_GetSysClkSource() != LL_RCC_SYS_CLKSOURCE_STATUS_PLLR)
+    {
+    }
+    LL_SetSystemCoreClock(192000000);
+
+    /* Update the time base */
+    if (HAL_InitTick(TICK_INT_PRIORITY) != HAL_OK)
+    {
+        Error_Handler();
+    }
+    LL_RCC_ConfigMCO(LL_RCC_MCO1SOURCE_PLLCLK, LL_RCC_MCO1_DIV_4);
+    LL_RCC_ConfigMCO(LL_RCC_MCO2SOURCE_PLLI2S, LL_RCC_MCO2_DIV_1);
+    LL_RCC_SetTIMPrescaler(LL_RCC_TIM_PRESCALER_TWICE);
+}
+
+/* Peripherals Common Clock Configuration */
+void PeriphCommonClock_Config(void)
+{
+    LL_RCC_PLLI2S_ConfigDomain_I2S(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLI2SM_DIV_16, 128, LL_RCC_PLLI2SR_DIV_2);
+    LL_RCC_PLLI2S_Enable();
+
+    /* Wait till PLL is ready */
+    while (LL_RCC_PLLI2S_IsReady() != 1)
+    {
+    }
+}
+
+/* I2C1 Initialization Function */
+void MX_I2C1_Init(I2C_HandleTypeDef *hi2c)
+{
+    hi2c->Instance = I2C1;
+    hi2c->Init.ClockSpeed = 100000;
+    hi2c->Init.DutyCycle = I2C_DUTYCYCLE_2;
+    hi2c->Init.OwnAddress1 = 0;
+    hi2c->Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+    hi2c->Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+    hi2c->Init.OwnAddress2 = 0;
+    hi2c->Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+    hi2c->Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+    if (HAL_I2C_Init(hi2c) != HAL_OK)
+    {
+        Error_Handler();
+    }
+}
+
+/* I2S1 Initialization Function */
+void MX_I2S1_Init(void)
+{
+    hi2s1.Instance = SPI1;
+    hi2s1.Init.Mode = I2S_MODE_SLAVE_TX;
+    hi2s1.Init.Standard = I2S_STANDARD_PHILIPS;
+    hi2s1.Init.DataFormat = I2S_DATAFORMAT_32B;
+    hi2s1.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
+    hi2s1.Init.AudioFreq = I2S_AUDIOFREQ_48K;
+    hi2s1.Init.CPOL = I2S_CPOL_LOW;
+    hi2s1.Init.ClockSource = I2S_CLOCK_PLL;
+    hi2s1.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_DISABLE;
+    if (HAL_I2S_Init(&hi2s1) != HAL_OK)
+    {
+        Error_Handler();
+    }
+}
+
+/* I2S3 Initialization Function */
+void MX_I2S3_Init(void)
+{
+    hi2s3.Instance = SPI3;
+    hi2s3.Init.Mode = I2S_MODE_MASTER_TX;
+    hi2s3.Init.Standard = I2S_STANDARD_PHILIPS;
+    hi2s3.Init.DataFormat = I2S_DATAFORMAT_32B;
+    hi2s3.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
+    hi2s3.Init.AudioFreq = I2S_AUDIOFREQ_48K;
+    hi2s3.Init.CPOL = I2S_CPOL_LOW;
+    hi2s3.Init.ClockSource = I2S_CLOCK_PLL;
+    hi2s3.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_DISABLE;
+    if (HAL_I2S_Init(&hi2s3) != HAL_OK)
+    {
+        Error_Handler();
+    }
+}
+
+/* SPI4 Initialization Function */
+void MX_SPI4_Init(void)
+{
+    hspi4.Instance = SPI4;
+    hspi4.Init.Mode = SPI_MODE_MASTER;
+    hspi4.Init.Direction = SPI_DIRECTION_1LINE;
+    hspi4.Init.DataSize = SPI_DATASIZE_8BIT;
+    hspi4.Init.CLKPolarity = SPI_POLARITY_LOW;
+    hspi4.Init.CLKPhase = SPI_PHASE_1EDGE;
+    hspi4.Init.NSS = SPI_NSS_SOFT;
+    hspi4.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+    hspi4.Init.FirstBit = SPI_FIRSTBIT_MSB;
+    hspi4.Init.TIMode = SPI_TIMODE_DISABLE;
+    hspi4.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+    hspi4.Init.CRCPolynomial = 10;
+    if (HAL_SPI_Init(&hspi4) != HAL_OK)
+    {
+        Error_Handler();
+    }
+}
+
+/* TIM3 Initialization Function
+ * Driven by the I2S WS (word select) output, used as an input on PD2 (ETR,
+ * external trigger). Generates an update event every 32 counts. */
+void MX_TIM3_Init(void)
+{
+    LL_TIM_InitTypeDef TIM_InitStruct = {0};
+    LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    /* Peripheral clock enable */
+    LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_TIM3);
+    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOD);
+
+    /* TIM3 GPIO Configuration: PD2 -> TIM3_ETR */
+    GPIO_InitStruct.Pin = TIM3_ETR_AUDIO_SYNC_Pin;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    GPIO_InitStruct.Alternate = LL_GPIO_AF_2;
+    LL_GPIO_Init(TIM3_ETR_AUDIO_SYNC_GPIO_Port, &GPIO_InitStruct);
+
+    /* TIM3 interrupt Init */
+    NVIC_SetPriority(TIM3_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), 5, 0));
+    NVIC_EnableIRQ(TIM3_IRQn);
+
+    TIM_InitStruct.Prescaler = 0;
+    TIM_InitStruct.CounterMode = LL_TIM_COUNTERMODE_UP;
+    TIM_InitStruct.Autoreload = 31;
+    TIM_InitStruct.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
+    LL_TIM_Init(TIM3, &TIM_InitStruct);
+    LL_TIM_DisableARRPreload(TIM3);
+    LL_TIM_SetTriggerInput(TIM3, LL_TIM_TS_ETRF);
+    LL_TIM_SetClockSource(TIM3, LL_TIM_CLOCKSOURCE_EXT_MODE1);
+    LL_TIM_DisableExternalClock(TIM3);
+    LL_TIM_ConfigETR(TIM3, LL_TIM_ETR_POLARITY_NONINVERTED, LL_TIM_ETR_PRESCALER_DIV1, LL_TIM_ETR_FILTER_FDIV1);
+    LL_TIM_DisableIT_TRIG(TIM3);
+    LL_TIM_DisableDMAReq_TRIG(TIM3);
+    LL_TIM_SetTriggerOutput(TIM3, LL_TIM_TRGO_RESET);
+    LL_TIM_DisableMasterSlaveMode(TIM3);
+}
+
+/* TIM4 Initialization Function (rotary encoder) */
+void MX_TIM4_Init(void)
+{
+    TIM_Encoder_InitTypeDef sConfig = {0};
+    TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+    htim4.Instance = TIM4;
+    htim4.Init.Prescaler = 1;
+    htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+    htim4.Init.Period = 255;
+    htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+    sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
+    sConfig.IC1Polarity = TIM_ICPOLARITY_FALLING;
+    sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
+    sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
+    sConfig.IC1Filter = 3;
+    sConfig.IC2Polarity = TIM_ICPOLARITY_FALLING;
+    sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
+    sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
+    sConfig.IC2Filter = 3;
+    if (HAL_TIM_Encoder_Init(&htim4, &sConfig) != HAL_OK)
+    {
+        Error_Handler();
+    }
+    sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+    sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+    if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+    {
+        Error_Handler();
+    }
+}
+
+/* USART2 Initialization Function */
+void MX_USART2_UART_Init(void)
+{
+    huart2.Instance = USART2;
+    huart2.Init.BaudRate = 115200;
+    huart2.Init.WordLength = UART_WORDLENGTH_8B;
+    huart2.Init.StopBits = UART_STOPBITS_1;
+    huart2.Init.Parity = UART_PARITY_NONE;
+    huart2.Init.Mode = UART_MODE_TX_RX;
+    /* No hardware flow control: it would time out commands in play mode,
+     * making pause impossible. */
+    huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+    if (HAL_UART_Init(&huart2) != HAL_OK)
+    {
+        Error_Handler();
+    }
+}
+
+/* USB_OTG_HS Initialization Function */
+void MX_USB_OTG_HS_PCD_Init(void)
+{
+    hpcd_USB_OTG_HS.Instance = USB_OTG_HS;
+    hpcd_USB_OTG_HS.Init.dev_endpoints = 8;
+    hpcd_USB_OTG_HS.Init.speed = PCD_SPEED_HIGH;
+    hpcd_USB_OTG_HS.Init.dma_enable = ENABLE;
+    hpcd_USB_OTG_HS.Init.phy_itface = USB_OTG_ULPI_PHY;
+    hpcd_USB_OTG_HS.Init.Sof_enable = DISABLE;
+    hpcd_USB_OTG_HS.Init.low_power_enable = DISABLE;
+    hpcd_USB_OTG_HS.Init.lpm_enable = ENABLE;
+    hpcd_USB_OTG_HS.Init.vbus_sensing_enable = DISABLE;
+    hpcd_USB_OTG_HS.Init.use_dedicated_ep1 = DISABLE;
+    hpcd_USB_OTG_HS.Init.use_external_vbus = DISABLE;
+    if (HAL_PCD_Init(&hpcd_USB_OTG_HS) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    /* Total FIFO must be <= 4096 bytes (1024 words), rx + tx */
+    HAL_PCDEx_SetRxFiFo(&hpcd_USB_OTG_HS, 0x200);    /* 512 words = 2048 B */
+    HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_HS, 0, 0x40);
+    HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_HS, 1, 0x174); /* streaming feedback */
+    HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_HS, 2, 0x20);  /* interrupt status, 6B */
+}
+
+/* Enable DMA controller clock and configure memory-to-memory transfers:
+ *   hdma_memtomem_dma2_stream0
+ *   hdma_memtomem_dma2_stream1 */
+void MX_DMA_Init(void)
+{
+    /* DMA controller clock enable */
+    __HAL_RCC_DMA2_CLK_ENABLE();
+    __HAL_RCC_DMA1_CLK_ENABLE();
+
+    /* Configure DMA request hdma_memtomem_dma2_stream0 on DMA2_Stream0 */
+    hdma_memtomem_dma2_stream0.Instance = DMA2_Stream0;
+    hdma_memtomem_dma2_stream0.Init.Channel = DMA_CHANNEL_0;
+    hdma_memtomem_dma2_stream0.Init.Direction = DMA_MEMORY_TO_MEMORY;
+    hdma_memtomem_dma2_stream0.Init.PeriphInc = DMA_PINC_ENABLE;
+    hdma_memtomem_dma2_stream0.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_memtomem_dma2_stream0.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
+    hdma_memtomem_dma2_stream0.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
+    hdma_memtomem_dma2_stream0.Init.Mode = DMA_NORMAL;
+    hdma_memtomem_dma2_stream0.Init.Priority = DMA_PRIORITY_LOW;
+    hdma_memtomem_dma2_stream0.Init.FIFOMode = DMA_FIFOMODE_ENABLE;
+    hdma_memtomem_dma2_stream0.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
+    hdma_memtomem_dma2_stream0.Init.MemBurst = DMA_MBURST_SINGLE;
+    hdma_memtomem_dma2_stream0.Init.PeriphBurst = DMA_PBURST_SINGLE;
+    if (HAL_DMA_Init(&hdma_memtomem_dma2_stream0) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    /* Configure DMA request hdma_memtomem_dma2_stream1 on DMA2_Stream1 */
+    hdma_memtomem_dma2_stream1.Instance = DMA2_Stream1;
+    hdma_memtomem_dma2_stream1.Init.Channel = DMA_CHANNEL_0;
+    hdma_memtomem_dma2_stream1.Init.Direction = DMA_MEMORY_TO_MEMORY;
+    hdma_memtomem_dma2_stream1.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_memtomem_dma2_stream1.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_memtomem_dma2_stream1.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_memtomem_dma2_stream1.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    hdma_memtomem_dma2_stream1.Init.Mode = DMA_NORMAL;
+    hdma_memtomem_dma2_stream1.Init.Priority = DMA_PRIORITY_LOW;
+    hdma_memtomem_dma2_stream1.Init.FIFOMode = DMA_FIFOMODE_ENABLE;
+    hdma_memtomem_dma2_stream1.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
+    hdma_memtomem_dma2_stream1.Init.MemBurst = DMA_MBURST_SINGLE;
+    hdma_memtomem_dma2_stream1.Init.PeriphBurst = DMA_PBURST_SINGLE;
+    if (HAL_DMA_Init(&hdma_memtomem_dma2_stream1) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    /* DMA interrupt init */
+    HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
+    HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
+    HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
+}
+
+/* GPIO Initialization Function */
+void MX_GPIO_Init(void)
+{
+    LL_EXTI_InitTypeDef EXTI_InitStruct = {0};
+    LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    /* GPIO Ports Clock Enable */
+    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOE);
+    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOC);
+    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOH);
+    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOA);
+    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOB);
+    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOD);
+
+    /* Reset output pins to a known state */
+    LL_GPIO_ResetOutputPin(GPIOE, ANALOG_ON_Pin | Light_fire_R_Pin | Light_fire_L_Pin | Led_G_Pin | Led_R_Pin | PGA_M_Pin | SPI4_CS_Pin);
+    LL_GPIO_ResetOutputPin(GPIOC, RELAY_ON_Pin | On_L_Pin | On_R_Pin | SEL_SPDIF_Pin | DSDOE_Pin);
+    LL_GPIO_ResetOutputPin(GPIOB, DAC_RST_Pin | LED1_SPDIF_Pin | BT_PWR_Pin);
+    LL_GPIO_ResetOutputPin(GPIOD, LED2_BT_Pin | LED3_LINE_Pin | LED4_USB_Pin | BT_RST_Pin);
+    LL_GPIO_ResetOutputPin(GPIOA, MUX_EN_Pin | MUX_SEL_Pin);
+
+    /* GPIOE outputs */
+    GPIO_InitStruct.Pin = ANALOG_ON_Pin | Light_fire_R_Pin | Light_fire_L_Pin | PGA_M_Pin;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    LL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+    /* GPIOC outputs */
+    GPIO_InitStruct.Pin = RELAY_ON_Pin | On_L_Pin | On_R_Pin | SEL_SPDIF_Pin;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+    /* SPI4 chip select */
+    GPIO_InitStruct.Pin = SPI4_CS_Pin;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    LL_GPIO_Init(SPI4_CS_GPIO_Port, &GPIO_InitStruct);
+
+    /* GPIOB outputs */
+    GPIO_InitStruct.Pin = DAC_RST_Pin | LED1_SPDIF_Pin | BT_PWR_Pin;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    /* GPIOD outputs */
+    GPIO_InitStruct.Pin = LED2_BT_Pin | LED3_LINE_Pin | LED4_USB_Pin | BT_RST_Pin;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    LL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+    /* PC9 alternate (MCO2) */
+    GPIO_InitStruct.Pin = LL_GPIO_PIN_9;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    GPIO_InitStruct.Alternate = LL_GPIO_AF_0;
+    LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+    /* PA8 alternate (MCO1) */
+    GPIO_InitStruct.Pin = LL_GPIO_PIN_8;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    GPIO_InitStruct.Alternate = LL_GPIO_AF_0;
+    LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    /* GPIOA outputs */
+    GPIO_InitStruct.Pin = MUX_EN_Pin | MUX_SEL_Pin;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    /* DSDOE output */
+    GPIO_InitStruct.Pin = DSDOE_Pin;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    LL_GPIO_Init(DSDOE_GPIO_Port, &GPIO_InitStruct);
+
+    /* Encoder push-button EXTI on PD11 */
+    LL_SYSCFG_SetEXTISource(LL_SYSCFG_EXTI_PORTD, LL_SYSCFG_EXTI_LINE11);
+
+    EXTI_InitStruct.Line_0_31 = LL_EXTI_LINE_11;
+    EXTI_InitStruct.LineCommand = ENABLE;
+    EXTI_InitStruct.Mode = LL_EXTI_MODE_IT;
+    EXTI_InitStruct.Trigger = LL_EXTI_TRIGGER_RISING_FALLING;
+    LL_EXTI_Init(&EXTI_InitStruct);
+
+    LL_GPIO_SetPinPull(EXT_INT_ENCODER_GPIO_Port, EXT_INT_ENCODER_Pin, LL_GPIO_PULL_NO);
+    LL_GPIO_SetPinMode(EXT_INT_ENCODER_GPIO_Port, EXT_INT_ENCODER_Pin, LL_GPIO_MODE_INPUT);
+
+    /* EXTI interrupt init */
+    NVIC_SetPriority(EXTI15_10_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), 5, 0));
+    NVIC_EnableIRQ(EXTI15_10_IRQn);
+}

@@ -43,8 +43,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-extern I2C_HandleTypeDef DAC_I2C_Handle;
-extern SPI_HandleTypeDef hspi4;
+#include "mx_init.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -88,7 +87,6 @@ void Error_Handler_str(const char *where);
 /* USER CODE BEGIN EFP */
 void Error_cancel_nonBlocking(errorNbr errorBit_nBr);
 void Error_Handler_nonBlocking(char *errorStr, errorNbr errorBit_nBr);
-void MX_I2C1_Init(I2C_HandleTypeDef *hi2c);
 
 /* LED PWM API (TIM9 CH1 = Led_G on PE5, CH2 = Led_R on PE6) */
 void Leds_PWM_Init(void);                       /* call once after MX_GPIO_Init */
@@ -183,8 +181,6 @@ extern volatile bool       CommandeAmp;  /* on/off request */
 extern volatile AmpState_t EtatAmp;      /* current amp state */
 
 extern volatile AudioSource_t current_source;
-
-extern UART_HandleTypeDef huart2;
 
 /* SEL_SPDIF (PC4) selects the physical SPDIF input: low = optical, high = coax */
 #define SPDIF_INPUT_OPTICAL  0u
