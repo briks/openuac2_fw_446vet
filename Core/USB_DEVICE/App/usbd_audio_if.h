@@ -52,6 +52,12 @@ typedef struct
 	uint8_t (*DAC_Volume)(int16_t, uint8_t);
 } AUDIO_CodecTypeDef;
 
+/* Windows volume-taper linearization (defined in usbd_audio_if.c).
+ *   CurveToLinear: convert the curved dB Windows sends to linear-in-dB.
+ *   LinearToCurve: inverse, for the GetCurrent round-trip (slider sync). */
+int16_t USB_VolCurveToLinear(int16_t curved_q88);
+int16_t USB_VolLinearToCurve(int16_t linear_q88);
+
 #ifdef __cplusplus
 }
 #endif

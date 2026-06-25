@@ -4,7 +4,72 @@
 #include "usb_device.h"
 #define LOG_LEVEL LOG_LEVEL_INFO
 #include "log.h"
+#include "usbd_audio.h"     /* AUDIO_MIN_VOL / AUDIO_MAX_VOL */
 
+/* Windows volume taper, full 1% resolution (index = slider%, 0..100),
+ * captured at RES=32 (0.125 dB grid). value = exact Q8.8 dB Windows sends.
+ * Shape ~33*log10(p) but not a clean formula -> table is authoritative. */
+#define WIN_TAPER_N     101
+#define WIN_TAPER_STEPS (WIN_TAPER_N - 1)   /* 100 */
+static const int16_t win_taper[WIN_TAPER_N] = {
+  -16384,-14400,-13088,-12128,-11328,-10688,-10144, -9632, -9216, -8832, /*  0.. 9% */
+   -8480, -8160, -7840, -7584, -7296, -7072, -6848, -6624, -6432, -6208, /* 10..19% */
+   -6048, -5856, -5696, -5536, -5376, -5216, -5088, -4928, -4800, -4672, /* 20..29% */
+   -4544, -4416, -4320, -4192, -4096, -3968, -3872, -3776, -3680, -3584, /* 30..39% */
+   -3488, -3392, -3296, -3200, -3136, -3040, -2944, -2880, -2784, -2720, /* 40..49% */
+   -2624, -2560, -2496, -2432, -2336, -2272, -2208, -2144, -2080, -2016, /* 50..59% */
+   -1952, -1888, -1824, -1760, -1696, -1632, -1600, -1536, -1472, -1408, /* 60..69% */
+    -1376, -1312, -1248, -1216, -1152, -1088, -1056,  -992,  -960,  -896, /* 70..79% */
+    -864,  -800,  -768,  -704,  -672,  -608,  -576,  -544,  -480,  -448, /* 80..89% */
+    -416,  -352,  -320,  -288,  -224,  -192,  -160,  -128,   -64,   -32, /* 90..99% */
+       0                                                                  /* 100% */
+};
+
+/* curved q88 (Windows) -> slider fraction Q16 (0..65536), via inverse search */
+static int32_t win_curved_to_fracQ16(int16_t v)
+{
+    if (v <= win_taper[0])               return 0;
+    if (v >= win_taper[WIN_TAPER_N - 1]) return 65536;
+
+    int lo = 0, hi = WIN_TAPER_N - 1;          /* table monotonic non-decreasing */
+    while (hi - lo > 1) {
+        int mid = (lo + hi) >> 1;
+        if (win_taper[mid] <= v) lo = mid; else hi = mid;
+    }
+    int32_t span = win_taper[hi] - win_taper[lo];
+    int64_t fin  = span ? (((int64_t)(v - win_taper[lo]) << 16) + span / 2) / span : 0;
+    int64_t pos  = ((int64_t)lo << 16) + fin;  /* 0..STEPS, Q16 */
+    return (int32_t)((pos + WIN_TAPER_STEPS / 2) / WIN_TAPER_STEPS);
+}
+
+/* slider fraction Q16 -> curved q88 (for GetCurrent round-trip) */
+static int16_t win_fracQ16_to_curved(int32_t frac)
+{
+    if (frac <= 0)     return win_taper[0];
+    if (frac >= 65536) return win_taper[WIN_TAPER_N - 1];
+
+    int64_t pos = (int64_t)frac * WIN_TAPER_STEPS;     /* index, Q16 */
+    int     idx = (int)(pos >> 16);
+    int32_t rem = (int32_t)(pos & 0xFFFF);
+    int16_t a = win_taper[idx], b = win_taper[idx + 1];
+    return (int16_t)(a + (((int32_t)(b - a) * rem + 32768) >> 16));
+}
+
+/* Public: linearize the curved value Windows sends. */
+int16_t USB_VolCurveToLinear(int16_t curved_q88)
+{
+    int32_t f     = win_curved_to_fracQ16(curved_q88);
+    int32_t range = AUDIO_MAX_VOL - AUDIO_MIN_VOL;
+    return (int16_t)(AUDIO_MIN_VOL + (int32_t)(((int64_t)range * f + 32768) >> 16));
+}
+
+/* Public: inverse, used when reporting Current back to the host. */
+int16_t USB_VolLinearToCurve(int16_t linear_q88)
+{
+    int32_t range = AUDIO_MAX_VOL - AUDIO_MIN_VOL;
+    int32_t f = (int32_t)((((int64_t)(linear_q88 - AUDIO_MIN_VOL) << 16) + range / 2) / range);
+    return win_fracQ16_to_curved(f);
+}
 
 extern I2S_HandleTypeDef AUDIO_I2S_MSTR_HANDLE;
 extern I2S_HandleTypeDef AUDIO_I2S_SLAVE_HANDLE;
@@ -176,8 +241,8 @@ static uint8_t AUDIO_Cmd(uint8_t* pbuf, uint32_t size, uint8_t cmd)
         if (codec->DAC_Volume != NULL && size == 2)
         {
             /* little-endian q8.8 */
-            int16_t vol = (int16_t)pbuf[0];
-            vol |= ((int16_t)pbuf[1]) << 8;
+            int16_t vol = (int16_t)(pbuf[0] | (pbuf[1] << 8));
+            vol = USB_VolCurveToLinear(vol);          /* undo Windows taper */
             LOG_INFO("Volume command CN %d with vol %d",
                      cmd - AUDIO_CMD_VOLUME_MASTER, vol);
             codec->DAC_Volume(vol, cmd - AUDIO_CMD_VOLUME_MASTER);

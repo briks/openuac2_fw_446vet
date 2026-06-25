@@ -57,10 +57,10 @@ extern "C" {
  * Special value 0x8000 means "silence" (use mute control instead).
  * The DAC internally uses a larger range; host volume is scaled before applying.
  */
-#define AUDIO_MIN_VOL    ((int16_t)(-64 * 256)) /* -64.0  dB  = 0xC000, for USB and DAC */
-#define AUDIO_MAX_VOL    ((int16_t)(  0 * 256)) /*   0.0  dB  = 0x0000, for USB and DAC*/
-#define AUDIO_VOL_RES    ((int16_t)(       64)) /*   0.25 dB step, as defined for USB */
-#define AUDIO_ROTARY_RES ((int16_t)(      256)) /*   1.0  dB step, per rotary step */
+#define AUDIO_MIN_VOL    ((int16_t)(-64 * 256)) /* -64.0   dB  = 0xC000, for USB and DAC */
+#define AUDIO_MAX_VOL    ((int16_t)(  0 * 256)) /*   0.0   dB  = 0x0000, for USB and DAC*/
+#define AUDIO_VOL_RES    ((int16_t)(       32)) /*   0.125 dB step, as defined for USB */
+#define AUDIO_ROTARY_RES ((int16_t)(      256)) /*   1.0   dB step, per rotary step */
 #define AUDIO_CUR_VOL    ((int16_t)(-30 * 256)) /* startup at -40 dB */
 #define FEEDBACK_HS_BINTERVAL           4U  // for 8µframe or 1 ms
 #define STREAMING_HS_BINTERVAL          1U  // for 1µframe of 1/8 ms, Interval for polling endpoint for data transfers

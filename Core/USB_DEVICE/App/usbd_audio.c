@@ -845,21 +845,25 @@ static void AUDIO_REQ_GetCurrent(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef 
             // Send new volume even if not applied yet
             if (LOBYTE(req->wValue) == CHANNEL_MASTER)
             {
+                int16_t avg = (requested_volume_ch1 + requested_volume_ch2) / 2;
+                avg = USB_VolLinearToCurve(avg);
                 LOG_DBG("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u",
-                         LOBYTE(req->wValue), requested_volume_ch1, req->wLength);
-                SET_DATA(pbuf, int16_t, (requested_volume_ch1 + requested_volume_ch2) / 2);
+                        LOBYTE(req->wValue), avg, req->wLength);
+                SET_DATA(pbuf, int16_t, avg);
             }
             else if (LOBYTE(req->wValue) == CHANNEL_1)
             {
-                LOG_DBG("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u",
-                         LOBYTE(req->wValue), requested_volume_ch1, req->wLength);
-                SET_DATA(pbuf, int16_t, requested_volume_ch1);
+                int16_t vol = USB_VolLinearToCurve(requested_volume_ch1);
+                LOG_DBG("GetCurrent: volume requested by host, channel=%u, value=%d->%d, size=%u",
+                         LOBYTE(req->wValue), requested_volume_ch1, vol, req->wLength);
+                SET_DATA(pbuf, int16_t, vol);
             }
             else if (LOBYTE(req->wValue) == CHANNEL_2)
             {
-                LOG_DBG("GetCurrent: volume requested by host, channel=%u, value=%d, size=%u", 
-                    LOBYTE(req->wValue), requested_volume_ch2, req->wLength);
-                SET_DATA(pbuf, int16_t, requested_volume_ch2);
+                int16_t vol = USB_VolLinearToCurve(requested_volume_ch2);
+                LOG_DBG("GetCurrent: volume requested by host, channel=%u, value=%d->%d, size=%u", 
+                        LOBYTE(req->wValue), requested_volume_ch2, vol, req->wLength);
+                SET_DATA(pbuf, int16_t, vol);
             }
             else
             { // 0 could be master channel, but we don't support it
