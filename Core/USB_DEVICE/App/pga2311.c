@@ -7,12 +7,8 @@
 
 extern SPI_HandleTypeDef hspi4;
 
-/* Analog LINE level is ~30 dB above the digital (DAC) path at the same volume
- * setting, so add a fixed gain offset to the PGA to match. Capped at 0 dB:
- * the PGA never amplifies above unity (clipping/noise safety), so the top of
- * the volume range flattens at 0 dB rather than boosting further. */
-#define PGA2311_GAIN_OFFSET_DB   15   /* measured analog overhead, tune as needed */
-#define PGA2311_MAX_GAIN_DB       0   /* never go above unity gain               */
+#define PGA2311_GAIN_OFFSET_DB   0   /* correct analog overhead vs digital, tune as needed */
+#define PGA2311_MAX_GAIN_DB      0   /* never go above unity gain               */
 
 /* Convert host Q8.8 dB volume to a PGA2311 8-bit code.
  *   datasheet: Gain(dB) = -96 + 0.5*N   ->   N = 2*Gain + 192

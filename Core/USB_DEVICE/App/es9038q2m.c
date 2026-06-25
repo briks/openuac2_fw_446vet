@@ -156,8 +156,8 @@ uint8_t ES9038Q2M_DAC_DeInit(void)
 
 void ES9038Q2M_DAC_Volume_change(int8_t delta)
 {
-    ES9038Q2M_DAC_Volume_set(requested_volume_ch1 + delta * AUDIO_VOL_RES, CHANNEL_1);
-    ES9038Q2M_DAC_Volume_set(requested_volume_ch2 + delta * AUDIO_VOL_RES, CHANNEL_2);
+    ES9038Q2M_DAC_Volume_set(requested_volume_ch1 + delta * AUDIO_ROTARY_RES, CHANNEL_1);
+    ES9038Q2M_DAC_Volume_set(requested_volume_ch2 + delta * AUDIO_ROTARY_RES, CHANNEL_2);
     // Avoid to send two interrupts at the same time. Works ok, get cur done on both channels.
     USBD_AUDIO_signal_volume_change();
 }
@@ -264,7 +264,7 @@ uint8_t convert_vol_to_register(int16_t volume_q88)
       *   register_value = -2 * dB = -2 * (q88 / 256) = -q88 / 128
       *   yielding 0..254 for 0..-64 dB.
       */
-    int32_t attenuation = -((int32_t)volume_q88) / 64; //  /256 for q8.8, and x4 from -64/0 to 0/255
+    int32_t attenuation = -((int32_t)volume_q88) / 128; //  /256 for q8.8 to get dB, and x2 to get 0.5dB range, -64/0 to 0/128 (not full range in reg)
     if (attenuation < 0)
         attenuation = 0;
     if (attenuation > 255)

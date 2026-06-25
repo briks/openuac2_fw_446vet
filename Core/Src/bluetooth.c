@@ -176,6 +176,14 @@ void BT_Play(void)
     //bt_paused_by_us = false;
 }
 
+/* Send AT+SPKVOL=<vol> to set the phone's absolute A2DP volume. */
+static void BT_SendSpkVol(uint8_t vol)
+{
+    char cmd[16];
+    snprintf(cmd, sizeof(cmd), "AT+SPKVOL=%u", (unsigned)vol);
+    BT_SendCommand(cmd);
+}
+
 /* Set the phone's A2DP volume to an absolute value (AT+SPKVOL=N). */
 void BT_VolumeInit(uint8_t target)
 {
@@ -184,9 +192,7 @@ void BT_VolumeInit(uint8_t target)
     if (target > BT_SPKVOL_MAX)
         target = BT_SPKVOL_MAX;
 
-    char cmd[16];
-    snprintf(cmd, sizeof(cmd), "AT+SPKVOL=%u", (unsigned)target);
-    BT_SendCommand(cmd);
+    BT_SendSpkVol(target);
     bt_phone_vol = (int8_t)target;
     LOG_INFO("BT phone volume set to %u", (unsigned)target);
 }
@@ -230,11 +236,11 @@ int8_t BT_VolumeChange(int8_t delta)
     if (delta > 0)
     {
         int room = BT_SPKVOL_MAX - bt_phone_vol;
-        if (room < 0) room = 0;
+        if (room < 0)
+            room = 0;
         int take = (delta < room) ? delta : room;
-        for (int i = 0; i < take; i++)
-            BT_SendCommand("AT+SPKVOL=+");
         bt_phone_vol += take;
+        BT_SendSpkVol((uint8_t)bt_phone_vol);
         LOG_INFO("BT vol up: phone=%d, %d step(s) left for DAC", bt_phone_vol, delta - take);
         return (int8_t)(delta - take);    /* leftover -> DAC up */
     }
@@ -242,9 +248,8 @@ int8_t BT_VolumeChange(int8_t delta)
     {
         int down = -delta;
         int take = (down < bt_phone_vol) ? down : bt_phone_vol;
-        for (int i = 0; i < take; i++)
-            BT_SendCommand("AT+SPKVOL=-");
         bt_phone_vol -= take;
+        BT_SendSpkVol((uint8_t)bt_phone_vol);
         LOG_INFO("BT vol down: phone=%d", bt_phone_vol);
         return 0;                         /* DAC never lowered */
     }
