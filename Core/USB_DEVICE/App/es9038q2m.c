@@ -116,9 +116,11 @@ uint8_t ES9038Q2M_DAC_Init(void)
         1'b0: disables the DoP logic
         1'b1: enables the DoP logic
     [2:0] volume_rate
-        Selects a volume ramp rate to use when transitioning between different volume levels. The volume ramp rate is measured in decibels per second (dB/s).
+        Selects a volume ramp rate to use when transitioning between different volume levels.
+        The volume ramp rate is measured in decibels per second (dB/s).
+        At 0, if FSR = 48k, ramp rate = 93 dB/s, so 0.68s for -64dB
     */
-    registre = 0xC8; // auto_deemph + dop_enable + volume_rate=0b000 (slowest ramp rate)
+    registre = 0xC8; // auto_deemph + dop_enable + volume_rate=0b000 (slowest ramp rate), see delay in Source_Mute()
     HAL_I2C_Mem_Write(&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG6_ADDR,
                       I2C_MEMADD_SIZE_8BIT, &registre, 1, TIMEOUT_I2C_DELAY);
     HAL_I2C_Mem_Read (&DAC_I2C_Handle, ES9038Q2M_I2C_DEV_ADDR, ES9038Q2M_REG6_ADDR,

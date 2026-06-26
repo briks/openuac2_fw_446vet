@@ -415,6 +415,11 @@ static void Source_Mute(void)
 
     if (current_source == SOURCE_BT)
         BT_Pause();                      /* pause phone (no-op if not connected) */
+    
+    // wait for volume ramp down to finish.
+    // Linked with volume_rate in ES9038Q2M_REG6_ADDR
+    // Atvolume_rate == 0, if FSR = 48k, ramp rate = 93 dB/s, so 0.68s for -64dB
+    osDelay(500); // 500ms enough
 }
 
 /* Unmute the audio path for the given source, but only once the amp is fully
@@ -430,16 +435,18 @@ static void Source_Unmute(AudioSource_t src)
         return;
     }
 
+    if (src == SOURCE_BT)
+    {
+        BT_VolumeInit(BT_SPKVOL_START);   /* phone to mid (7), keep current DAC */
+        BT_Play();
+        osDelay(500); // wait for play to apply
+    }
+
     if (src == SOURCE_LINE)
         PGA2311_Mute(false);                 /* un-mute PGA (PGA_M) */
     else
         ES9038Q2M_DAC_SetMute_Force(false);  /* un-mute DAC */
 
-    if (src == SOURCE_BT)
-    {
-        BT_VolumeInit(BT_SPKVOL_START);   /* phone to mid (7), keep current DAC */
-        BT_Play();
-    }
 }
 
 /* Could return immediately if the source is already active.
@@ -462,7 +469,10 @@ static bool Source_IsAvailable(AudioSource_t src)
     case SOURCE_BT:
         if (BT_IsConnected())
             return true;
-        osDelay(1000);                      /* give it a second to connect */
+        osDelay(500); 
+        if (BT_IsConnected())
+            return true;
+        osDelay(500);                      /* give it a second to connect */
         return BT_IsConnected();
 
     case SOURCE_LINE:
